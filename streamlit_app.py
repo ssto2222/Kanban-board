@@ -50,6 +50,27 @@ st.markdown("""
 .dl-ok      { color: #1a7a40; }
 .dl-warn    { color: #a05a00; }
 .dl-overdue { color: #b02020; }
+/* Assignee section header */
+.assignee-hdr {
+    background: #16213e;
+    border-left: 4px solid #e94560;
+    border-radius: 0 8px 8px 0;
+    padding: 10px 16px;
+    margin-bottom: 10px;
+    font-weight: 700; font-size: 15px; color: #eaeaea;
+}
+.assignee-hdr .sub {
+    color: #9a9ab0; font-size: 12px; font-weight: 400; margin-left: 8px;
+}
+.status-label {
+    font-size: 11px; color: #9a9ab0; margin-bottom: 6px;
+}
+/* Status badge on card (assignee view) */
+.status-pill {
+    display: inline-block;
+    border-radius: 10px; padding: 1px 7px;
+    font-size: 10px; font-weight: 700; color: #fff; margin-bottom: 3px;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -202,13 +223,23 @@ def task_dialog(task: dict | None = None):
 
 # ── Card ──────────────────────────────────────────────────────────────────────
 
-def render_card(task: dict, col_idx: int):
+COL_META = {c["key"]: c for c in COLUMNS}
+
+
+def render_card(task: dict, col_idx: int, show_status: bool = False):
     c = task["color"]
+    col_def = COL_META.get(task.get("column", "todo"), COLUMNS[0])
+    status_pill = (
+        f'<div><span class="status-pill" style="background:{col_def["bg"]}">'
+        f'{col_def["label"]}</span></div>'
+        if show_status else ""
+    )
     st.markdown(f"""
     <div class="kcard">
       <div class="kcard-top" style="background:{darken(c)}">{task["title"]}</div>
       <div class="kcard-body" style="background:{c}">
-        {"<div>👤 " + task['assignee'] + "</div>" if task.get("assignee") else ""}
+        {status_pill}
+        {"<div>👤 " + task['assignee'] + "</div>" if task.get("assignee") and not show_status else ""}
         {deadline_html(task.get("deadline", ""))}
         {"<div>🕐 開始: " + task['started_at']  + "</div>" if task.get("started_at")  else ""}
         {"<div>🕑 終了: " + task['finished_at'] + "</div>" if task.get("finished_at") else ""}
@@ -233,11 +264,62 @@ def render_card(task: dict, col_idx: int):
             update_task(task["id"], {"column": COL_KEYS[col_idx + 1]})
             st.rerun()
 
+# ── Assignee view ─────────────────────────────────────────────────────────────
+
+def render_assignee_view(tasks: list[dict]):
+    UNASSIGNED = "（未割り当て）"
+    groups: dict[str, list[dict]] = {}
+    for t in tasks:
+        key = t.get("assignee") or UNASSIGNED
+        groups.setdefault(key, []).append(t)
+
+    # Assigned names first (alphabetical), unassigned last
+    order = sorted(
+        groups.keys(),
+        key=lambda x: ("\xff" if x == UNASSIGNED else x),
+    )
+
+    for name in order:
+        member_tasks = groups[name]
+        todo_n = sum(1 for t in member_tasks if t["column"] == "todo")
+        wip_n  = sum(1 for t in member_tasks if t["column"] == "wip")
+        done_n = sum(1 for t in member_tasks if t["column"] == "done")
+
+        st.markdown(
+            f'<div class="assignee-hdr">'
+            f'{"👤" if name != UNASSIGNED else "❓"} {name}'
+            f'<span class="sub">'
+            f'計 {len(member_tasks)} 件 &nbsp;|&nbsp; '
+            f'待機 {todo_n} &nbsp;進行 {wip_n} &nbsp;完了 {done_n}'
+            f'</span></div>',
+            unsafe_allow_html=True,
+        )
+
+        cols = st.columns(3, gap="medium")
+        for i, col_def in enumerate(COLUMNS):
+            with cols[i]:
+                col_tasks = [t for t in member_tasks if t["column"] == col_def["key"]]
+                st.markdown(
+                    f'<div class="status-label">{col_def["label"]} ({len(col_tasks)})</div>',
+                    unsafe_allow_html=True,
+                )
+                for task in col_tasks:
+                    render_card(task, i)
+
+        st.divider()
+
+
 # ── Main ──────────────────────────────────────────────────────────────────────
 
-h_col, btn_col = st.columns([5, 1])
+h_col, view_col, btn_col = st.columns([3, 2, 1])
 with h_col:
     st.markdown("# 🗒 StickyKanban")
+with view_col:
+    st.write("")
+    view = st.radio(
+        "view", ["📋 カンバン", "👤 担当者別"],
+        horizontal=True, label_visibility="collapsed",
+    )
 with btn_col:
     st.write("")
     if st.button("＋ 新規タスク", type="primary", use_container_width=True):
@@ -260,16 +342,19 @@ if search:
     q = search.lower()
     tasks = [t for t in tasks if q in t["title"].lower() or q in t.get("assignee", "").lower()]
 
-board_cols = st.columns(3, gap="medium")
-for i, col_def in enumerate(COLUMNS):
-    with board_cols[i]:
-        col_tasks = [t for t in tasks if t["column"] == col_def["key"]]
-        st.markdown(
-            f'<div class="col-hdr" style="background:{col_def["bg"]}">'
-            f'<span>{col_def["label"]}</span>'
-            f'<span class="badge">{len(col_tasks)}</span>'
-            f'</div>',
-            unsafe_allow_html=True,
-        )
-        for task in col_tasks:
-            render_card(task, i)
+if view == "👤 担当者別":
+    render_assignee_view(tasks)
+else:
+    board_cols = st.columns(3, gap="medium")
+    for i, col_def in enumerate(COLUMNS):
+        with board_cols[i]:
+            col_tasks = [t for t in tasks if t["column"] == col_def["key"]]
+            st.markdown(
+                f'<div class="col-hdr" style="background:{col_def["bg"]}">'
+                f'<span>{col_def["label"]}</span>'
+                f'<span class="badge">{len(col_tasks)}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            for task in col_tasks:
+                render_card(task, i)
