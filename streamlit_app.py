@@ -162,10 +162,11 @@ def task_dialog(task: dict | None = None):
     task_id = task["id"] if is_edit else "new"
 
     # ── カラー用 session state ──────────────────────────────
-    # タスクが切り替わったときだけ初期色をリセット
+    # タスクが切り替わったときだけ初期色・版数をリセット
     if st.session_state.get("_dlg_task_id") != task_id:
         st.session_state["_dlg_color"]   = task["color"] if is_edit else "#FFD166"
         st.session_state["_dlg_task_id"] = task_id
+        st.session_state["_sw_ver"]      = 0
 
     # ── フォームフィールド ─────────────────────────────────
     title    = st.text_input("タスク名 *", value=task["title"]    if is_edit else "")
@@ -187,26 +188,33 @@ def task_dialog(task: dict | None = None):
     st.divider()
 
     # ── カラーピッカー + スウォッチ ──────────────────────────
-    # color_picker の key を session state と共有することで
-    # スウォッチボタンから値を変更できる
-    color = st.color_picker("付箋の色", key="_dlg_color")
+    # スウォッチ選択のたびに版数(_sw_ver)を上げ、ピッカーのキーを変える。
+    # 新しいキーではセッション値が未登録なので value= が初期値として使われる。
+    sw_ver = st.session_state.get("_sw_ver", 0)
+    cp_key = f"_cp_{sw_ver}"
+    color  = st.color_picker("付箋の色",
+                              value=st.session_state["_dlg_color"],
+                              key=cp_key)
+    # 手動でピッカーを動かしたときは内部状態に反映
+    st.session_state["_dlg_color"] = color
 
     st.caption("プリセットカラー（クリックで選択）")
     sw_cols = st.columns(len(STICKY_COLORS))
     for i, sc in enumerate(STICKY_COLORS):
         selected = st.session_state["_dlg_color"].upper() == sc.upper()
         with sw_cols[i]:
-            # 色パッチ（装飾）
             outline = "outline:2px solid #fff;outline-offset:1px;" if selected else ""
             st.markdown(
                 f'<div style="background:{sc};height:20px;border-radius:4px;'
                 f'{outline}margin-bottom:2px"></div>',
                 unsafe_allow_html=True,
             )
-            # クリック可能ボタン — st.rerun() 不要、ダイアログ内で自動再描画
             if st.button("✓" if selected else " ", key=f"_sw_{i}",
                          use_container_width=True, help=sc):
+                # _dlg_color は widget key でないので直接書き込み可
                 st.session_state["_dlg_color"] = sc
+                # 版数を上げて次の rerun でピッカーを新しいキーで再生成
+                st.session_state["_sw_ver"] = sw_ver + 1
 
     # ── ボタン行 ────────────────────────────────────────────
     st.write("")
