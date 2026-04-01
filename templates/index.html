@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>🗒 StickyKanban</title>
+  <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <h1 class="logo">🗒 StickyKanban</h1>
+      <button class="btn btn-primary" id="btn-new">＋ 新規タスク</button>
+    </header>
+
+    <div class="searchbar">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="search" placeholder="タスク・担当者を検索...">
+    </div>
+
+    <main class="board">
+      <div class="column" id="col-todo" data-col="todo">
+        <div class="col-header" style="background:#0f3460">
+          <span>📋&nbsp; 待機中</span>
+          <span class="badge" id="count-todo">0</span>
+        </div>
+        <div class="cards" id="cards-todo"></div>
+      </div>
+
+      <div class="column" id="col-wip" data-col="wip">
+        <div class="col-header" style="background:#533483">
+          <span>⚡&nbsp; 進行中</span>
+          <span class="badge" id="count-wip">0</span>
+        </div>
+        <div class="cards" id="cards-wip"></div>
+      </div>
+
+      <div class="column" id="col-done" data-col="done">
+        <div class="col-header" style="background:#1a6b3c">
+          <span>✅&nbsp; 完了</span>
+          <span class="badge" id="count-done">0</span>
+        </div>
+        <div class="cards" id="cards-done"></div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Modal -->
+  <div class="overlay" id="overlay">
+    <div class="modal">
+      <h2 id="modal-title">新規タスク</h2>
+      <input type="hidden" id="task-id">
+
+      <div class="field">
+        <label>タスク名 <span class="req">*</span></label>
+        <input type="text" id="task-title" placeholder="タスク名を入力">
+      </div>
+      <div class="field">
+        <label>担当者</label>
+        <input type="text" id="task-assignee" placeholder="担当者名">
+      </div>
+      <div class="field">
+        <label>期限</label>
+        <input type="date" id="task-deadline">
+      </div>
+      <div class="field">
+        <label>メモ</label>
+        <input type="text" id="task-note" placeholder="メモを入力">
+      </div>
+      <div class="field">
+        <label>付箋の色</label>
+        <div class="color-row">
+          <input type="color" id="task-color" value="#FFD166">
+          <div id="swatches"></div>
+        </div>
+      </div>
+
+      <div class="modal-btns">
+        <button class="btn btn-cancel" id="btn-cancel">キャンセル</button>
+        <div class="modal-btns-right">
+          <button class="btn btn-danger" id="btn-delete">削除</button>
+          <button class="btn btn-primary" id="btn-save">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
