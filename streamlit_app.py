@@ -1,5 +1,6 @@
 import streamlit as st
 from supabase import create_client
+import html as html_mod
 import uuid
 from datetime import date, datetime, time
 
@@ -158,7 +159,15 @@ def dt_input(label: str, existing: str) -> str:
 @st.dialog("タスク", width="small")
 def task_dialog(task: dict | None = None):
     is_edit = task is not None
+    task_id = task["id"] if is_edit else "new"
 
+    # ── カラー用 session state ──────────────────────────────
+    # タスクが切り替わったときだけ初期色をリセット
+    if st.session_state.get("_dlg_task_id") != task_id:
+        st.session_state["_dlg_color"]   = task["color"] if is_edit else "#FFD166"
+        st.session_state["_dlg_task_id"] = task_id
+
+    # ── フォームフィールド ─────────────────────────────────
     title    = st.text_input("タスク名 *", value=task["title"]    if is_edit else "")
     assignee = st.text_input("担当者",     value=task["assignee"] if is_edit else "")
 
@@ -170,24 +179,36 @@ def task_dialog(task: dict | None = None):
             pass
     deadline = st.date_input("期限", value=dl_val, format="YYYY-MM-DD")
 
-    note  = st.text_input("メモ",       value=task["note"]  if is_edit else "")
+    note = st.text_input("メモ", value=task["note"] if is_edit else "")
 
     st.divider()
-    started_at  = dt_input("開始日時を設定",  task.get("started_at",  "") if is_edit else "")
-    finished_at = dt_input("終了日時を設定",  task.get("finished_at", "") if is_edit else "")
+    started_at  = dt_input("開始日時を設定", task.get("started_at",  "") if is_edit else "")
+    finished_at = dt_input("終了日時を設定", task.get("finished_at", "") if is_edit else "")
     st.divider()
 
-    color = st.color_picker("付箋の色", value=task["color"] if is_edit else "#FFD166")
+    # ── カラーピッカー + スウォッチ ──────────────────────────
+    # color_picker の key を session state と共有することで
+    # スウォッチボタンから値を変更できる
+    color = st.color_picker("付箋の色", key="_dlg_color")
 
-    st.caption("プリセットカラー")
+    st.caption("プリセットカラー（クリックで選択）")
     sw_cols = st.columns(len(STICKY_COLORS))
-    for i, c in enumerate(STICKY_COLORS):
-        sw_cols[i].markdown(
-            f'<div title="{c}" style="background:{c};width:20px;height:20px;'
-            f'border-radius:4px;margin:auto"></div>',
-            unsafe_allow_html=True,
-        )
+    for i, sc in enumerate(STICKY_COLORS):
+        selected = st.session_state["_dlg_color"].upper() == sc.upper()
+        with sw_cols[i]:
+            # 色パッチ（装飾）
+            outline = "outline:2px solid #fff;outline-offset:1px;" if selected else ""
+            st.markdown(
+                f'<div style="background:{sc};height:20px;border-radius:4px;'
+                f'{outline}margin-bottom:2px"></div>',
+                unsafe_allow_html=True,
+            )
+            # クリック可能ボタン — st.rerun() 不要、ダイアログ内で自動再描画
+            if st.button("✓" if selected else " ", key=f"_sw_{i}",
+                         use_container_width=True, help=sc):
+                st.session_state["_dlg_color"] = sc
 
+    # ── ボタン行 ────────────────────────────────────────────
     st.write("")
     c_cancel, c_save = st.columns(2)
 
@@ -204,7 +225,7 @@ def task_dialog(task: dict | None = None):
                 "title":       title.strip(),
                 "assignee":    assignee.strip(),
                 "deadline":    deadline.strftime("%Y-%m-%d") if deadline else "",
-                "color":       color,
+                "color":       st.session_state["_dlg_color"],
                 "note":        note.strip(),
                 "started_at":  started_at,
                 "finished_at": finished_at,
@@ -227,26 +248,35 @@ COL_META = {c["key"]: c for c in COLUMNS}
 
 
 def render_card(task: dict, col_idx: int, show_status: bool = False):
-    c = task["color"]
+    c = task.get("color", "#FFD166")
     col_def = COL_META.get(task.get("column", "todo"), COLUMNS[0])
-    status_pill = (
-        f'<div><span class="status-pill" style="background:{col_def["bg"]}">'
-        f'{col_def["label"]}</span></div>'
-        if show_status else ""
+
+    body: list[str] = []
+    if show_status:
+        body.append(
+            f'<span class="status-pill" style="background:{col_def["bg"]}">'
+            f'{col_def["label"]}</span>'
+        )
+    if task.get("assignee") and not show_status:
+        body.append(f'<div>👤 {html_mod.escape(task["assignee"])}</div>')
+    dl = deadline_html(task.get("deadline", ""))
+    if dl:
+        body.append(dl)
+    if task.get("started_at"):
+        body.append(f'<div>🕐 開始: {html_mod.escape(task["started_at"])}</div>')
+    if task.get("finished_at"):
+        body.append(f'<div>🕑 終了: {html_mod.escape(task["finished_at"])}</div>')
+    if task.get("note"):
+        body.append(f'<div style="color:#555">{html_mod.escape(task["note"])}</div>')
+
+    st.markdown(
+        f'<div class="kcard">'
+        f'<div class="kcard-top" style="background:{darken(c)}">'
+        f'{html_mod.escape(task.get("title", ""))}</div>'
+        f'<div class="kcard-body" style="background:{c}">{"".join(body)}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
     )
-    st.markdown(f"""
-    <div class="kcard">
-      <div class="kcard-top" style="background:{darken(c)}">{task["title"]}</div>
-      <div class="kcard-body" style="background:{c}">
-        {status_pill}
-        {"<div>👤 " + task['assignee'] + "</div>" if task.get("assignee") and not show_status else ""}
-        {deadline_html(task.get("deadline", ""))}
-        {"<div>🕐 開始: " + task['started_at']  + "</div>" if task.get("started_at")  else ""}
-        {"<div>🕑 終了: " + task['finished_at'] + "</div>" if task.get("finished_at") else ""}
-        {"<div style='color:#555'>" + task['note'] + "</div>" if task.get("note") else ""}
-      </div>
-    </div>
-    """, unsafe_allow_html=True)
 
     b_l, b_e, b_r = st.columns(3)
 
