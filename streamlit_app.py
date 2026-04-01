@@ -1,7 +1,7 @@
 import streamlit as st
 from supabase import create_client
 import uuid
-from datetime import date, datetime
+from datetime import date, datetime, time
 
 # ── Constants ─────────────────────────────────────────────────────────────────
 
@@ -107,6 +107,31 @@ def deadline_html(dl: str) -> str:
         cls, note = "dl-ok", f"(残り{days}日)"
     return f'<div class="{cls}">📅 {dl}&nbsp;{note}</div>'
 
+
+def parse_dt(dt_str: str) -> tuple[date | None, time | None]:
+    """'YYYY-MM-DD HH:MM' → (date, time). Returns (None, None) if empty."""
+    if not dt_str:
+        return None, None
+    try:
+        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
+        return dt.date(), dt.time()
+    except Exception:
+        return None, None
+
+
+def dt_input(label: str, existing: str) -> str:
+    """Checkbox + date/time inputs. Returns 'YYYY-MM-DD HH:MM' or ''."""
+    d, t = parse_dt(existing)
+    enabled = st.checkbox(label, value=bool(d))
+    if enabled:
+        c1, c2 = st.columns(2)
+        picked_date = c1.date_input("日付", value=d or date.today(),
+                                    format="YYYY-MM-DD", label_visibility="collapsed")
+        picked_time = c2.time_input("時刻", value=t or time(9, 0),
+                                    label_visibility="collapsed")
+        return f"{picked_date} {picked_time.strftime('%H:%M')}"
+    return ""
+
 # ── Dialog ────────────────────────────────────────────────────────────────────
 
 @st.dialog("タスク", width="small")
@@ -125,6 +150,12 @@ def task_dialog(task: dict | None = None):
     deadline = st.date_input("期限", value=dl_val, format="YYYY-MM-DD")
 
     note  = st.text_input("メモ",       value=task["note"]  if is_edit else "")
+
+    st.divider()
+    started_at  = dt_input("開始日時を設定",  task.get("started_at",  "") if is_edit else "")
+    finished_at = dt_input("終了日時を設定",  task.get("finished_at", "") if is_edit else "")
+    st.divider()
+
     color = st.color_picker("付箋の色", value=task["color"] if is_edit else "#FFD166")
 
     st.caption("プリセットカラー")
@@ -149,11 +180,13 @@ def task_dialog(task: dict | None = None):
                 st.error("タスク名を入力してください")
                 st.stop()
             payload = {
-                "title":    title.strip(),
-                "assignee": assignee.strip(),
-                "deadline": deadline.strftime("%Y-%m-%d") if deadline else "",
-                "color":    color,
-                "note":     note.strip(),
+                "title":       title.strip(),
+                "assignee":    assignee.strip(),
+                "deadline":    deadline.strftime("%Y-%m-%d") if deadline else "",
+                "color":       color,
+                "note":        note.strip(),
+                "started_at":  started_at,
+                "finished_at": finished_at,
             }
             if is_edit:
                 update_task(task["id"], payload)
@@ -177,6 +210,8 @@ def render_card(task: dict, col_idx: int):
       <div class="kcard-body" style="background:{c}">
         {"<div>👤 " + task['assignee'] + "</div>" if task.get("assignee") else ""}
         {deadline_html(task.get("deadline", ""))}
+        {"<div>🕐 開始: " + task['started_at']  + "</div>" if task.get("started_at")  else ""}
+        {"<div>🕑 終了: " + task['finished_at'] + "</div>" if task.get("finished_at") else ""}
         {"<div style='color:#555'>" + task['note'] + "</div>" if task.get("note") else ""}
       </div>
     </div>
