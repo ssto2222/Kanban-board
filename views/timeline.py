@@ -23,6 +23,17 @@ _GRID     = "#2a2a4a"
 _TEXT     = "#eaeaea"
 _TODAY_CL = "#e94560"
 
+# ホバーカードのテンプレート
+_HOVER_TMPL = (
+    "<span style='font-size:13px;font-weight:bold'>%{customdata[0]}</span><br>"
+    "👤 %{customdata[1]}<br>"
+    "📋 %{customdata[2]}<br>"
+    "📅 期限: %{customdata[3]}<br>"
+    "🕐 %{customdata[4]} → %{customdata[5]}<br>"
+    "<i style='color:#aaa;font-size:10px'>%{customdata[6]}</i>"
+    "<extra></extra>"
+)
+
 
 # ── パブリック ────────────────────────────────────────────────────────────────
 
@@ -35,7 +46,6 @@ def render_timeline(tasks: list[dict]) -> None:
 
     st.markdown("## 📅 タイムライン")
 
-    # ── コントロール ──────────────────────────────────────────────────────
     ctrl_l, ctrl_r = st.columns(2)
     with ctrl_l:
         mode = st.radio(
@@ -79,11 +89,9 @@ def _build_gantt(tasks: list[dict], group_by: str):
         if start_dt is None and dl_dt is None:
             continue
 
-        # 開始が無ければ期限の1日前を仮設定
         if start_dt is None:
             start_dt = datetime.combine(dl_dt - timedelta(days=1), datetime.min.time())  # type: ignore[arg-type]
 
-        # 終了が無ければ期限 or 開始の翌日
         if end_dt is None:
             if dl_dt:
                 end_dt = datetime.combine(dl_dt, datetime.min.time())
@@ -93,12 +101,21 @@ def _build_gantt(tasks: list[dict], group_by: str):
         if end_dt <= start_dt:
             end_dt = start_dt + timedelta(hours=1)
 
+        note = (t.get("note") or "").strip()
+        note_short = (note[:40] + "…") if len(note) > 40 else note
+
         rows.append({
-            "Task":  html_mod.escape(t.get("title", "")),
-            "Start": start_dt,
-            "Finish": end_dt,
-            "Group": _get_group(t, group_by),
-            "Color": t.get("color", "#FFD166"),
+            "Task":      html_mod.escape(t.get("title", "")),
+            "Start":     start_dt,
+            "Finish":    end_dt,
+            "Group":     _get_group(t, group_by),
+            "Color":     t.get("color", "#FFD166"),
+            "Assignee":  t.get("assignee") or "―",
+            "Status":    COL_META.get(t.get("column", "todo"), {}).get("label", ""),
+            "Deadline":  t.get("deadline") or "―",
+            "StartStr":  start_dt.strftime("%Y-%m-%d"),
+            "FinishStr": end_dt.strftime("%Y-%m-%d"),
+            "Note":      note_short,
         })
 
     if not rows:
@@ -116,6 +133,7 @@ def _build_gantt(tasks: list[dict], group_by: str):
         color="Color",
         color_discrete_map={c: c for c in df["Color"].unique()},
         category_orders={"Group": groups},
+        custom_data=["Task", "Assignee", "Status", "Deadline", "StartStr", "FinishStr", "Note"],
     )
 
     fig.update_traces(
@@ -123,6 +141,7 @@ def _build_gantt(tasks: list[dict], group_by: str):
         insidetextanchor="middle",
         textfont=dict(color="#111", size=11),
         marker_line_width=0,
+        hovertemplate=_HOVER_TMPL,
     )
 
     _add_today_line(fig)
@@ -133,25 +152,39 @@ def _build_gantt(tasks: list[dict], group_by: str):
 # ── マイルストーン ────────────────────────────────────────────────────────────
 
 def _build_milestone(tasks: list[dict], group_by: str):
-    """日付を持つタスクをダイヤモンドマーカーで描画する。"""
+    """日付を持つタスクをダイヤモンドマーカーとカードラベルで描画する。"""
     start_rows, end_rows, dl_rows = [], [], []
 
     for t in tasks:
-        group = _get_group(t, group_by)
-        color = t.get("color", "#FFD166")
-        title = html_mod.escape(t.get("title", ""))
+        group    = _get_group(t, group_by)
+        color    = t.get("color", "#FFD166")
+        title    = html_mod.escape(t.get("title", ""))
+        assignee = t.get("assignee") or "―"
+        status   = COL_META.get(t.get("column", "todo"), {}).get("label", "")
+        deadline = t.get("deadline") or "―"
+        note     = (t.get("note") or "").strip()
+        note_s   = (note[:40] + "…") if len(note) > 40 else note
 
         s = _parse_dt(t.get("started_at", ""))
         e = _parse_dt(t.get("finished_at", ""))
         d = _parse_date(t.get("deadline", ""))
 
+        base = dict(y=group, text=title, color=color,
+                    assignee=assignee, status=status, deadline=deadline,
+                    note=note_s)
+
         if s:
-            start_rows.append({"x": s, "y": group, "text": title, "color": color})
+            start_rows.append({**base, "x": s,
+                                "start_s": s.strftime("%Y-%m-%d"),
+                                "end_s": e.strftime("%Y-%m-%d") if e else "―"})
         if e:
-            end_rows.append({"x": e, "y": group, "text": title, "color": color})
+            end_rows.append({**base, "x": e,
+                              "start_s": s.strftime("%Y-%m-%d") if s else "―",
+                              "end_s": e.strftime("%Y-%m-%d")})
         if d and not e:
-            dl_rows.append({"x": datetime.combine(d, datetime.min.time()),
-                            "y": group, "text": title, "color": color})
+            dl_rows.append({**base, "x": datetime.combine(d, datetime.min.time()),
+                             "start_s": s.strftime("%Y-%m-%d") if s else "―",
+                             "end_s": d.strftime("%Y-%m-%d")})
 
     all_rows = start_rows + end_rows + dl_rows
     if not all_rows:
@@ -162,7 +195,7 @@ def _build_milestone(tasks: list[dict], group_by: str):
 
     fig = go.Figure()
 
-    def _add_scatter(rows, symbol, name):
+    def _add_scatter(rows, symbol, marker_name):
         if not rows:
             return
         df = pd.DataFrame(rows)
@@ -170,26 +203,42 @@ def _build_milestone(tasks: list[dict], group_by: str):
             sub = df[df["y"] == grp]
             if sub.empty:
                 continue
+            cd = sub[["text", "assignee", "status", "deadline",
+                       "start_s", "end_s", "note"]].values
             fig.add_trace(go.Scatter(
                 x=sub["x"],
                 y=sub["y"],
                 mode="markers+text",
-                marker=dict(symbol=symbol, size=14, color=sub["color"].tolist(),
-                            line=dict(color="#fff", width=1)),
+                marker=dict(
+                    symbol=symbol, size=16,
+                    color=sub["color"].tolist(),
+                    line=dict(color="#fff", width=1.5),
+                ),
                 text=sub["text"],
                 textposition="top center",
                 textfont=dict(color=_TEXT, size=10),
-                name=name,
-                showlegend=False,
-                hovertemplate="%{text}<br>%{x}<extra></extra>",
+                name=marker_name,
+                showlegend=True,
+                customdata=cd,
+                hovertemplate=_HOVER_TMPL,
             ))
 
-    _add_scatter(start_rows, "diamond",         "開始")
-    _add_scatter(end_rows,   "diamond-open",    "終了")
-    _add_scatter(dl_rows,    "triangle-down",   "期限")
+    _add_scatter(start_rows, "diamond",       "開始")
+    _add_scatter(end_rows,   "diamond-open",  "終了")
+    _add_scatter(dl_rows,    "triangle-down", "期限")
 
     _add_today_line(fig)
     _apply_dark_theme(fig, groups)
+
+    fig.update_layout(
+        showlegend=True,
+        legend=dict(
+            bgcolor=_GRID,
+            font=dict(color=_TEXT),
+            orientation="h",
+            y=1.05,
+        ),
+    )
     return fig
 
 
@@ -227,8 +276,8 @@ def _apply_dark_theme(fig, groups: list[str]) -> None:
             categoryorder="array",
             categoryarray=groups,
         ),
-        margin=dict(l=10, r=10, t=30, b=10),
-        height=max(300, 80 + 60 * len(groups)),
+        margin=dict(l=10, r=10, t=40, b=10),
+        height=max(320, 100 + 70 * len(groups)),
         showlegend=False,
     )
 
