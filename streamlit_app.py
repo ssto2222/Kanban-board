@@ -2,7 +2,7 @@ import streamlit as st
 
 from config import NAV_PAGES, COMING_SOON
 from db.tasks import load_tasks
-from views import render_kanban, render_assignee, render_new_task
+from views import render_kanban, render_assignee, render_new_task, render_timeline
 
 # ── ページ設定 ────────────────────────────────────────────────────────────────
 
@@ -115,8 +115,8 @@ with st.sidebar:
 
 page = st.session_state.page
 
-# カンバン / 担当者別 はデータ読み込みが必要
-if page in ("kanban", "assignee"):
+# カンバン / 担当者別 / タイムライン はデータ読み込みが必要
+if page in ("kanban", "assignee", "timeline"):
     try:
         tasks = load_tasks()
     except Exception as e:
@@ -125,20 +125,23 @@ if page in ("kanban", "assignee"):
         st.info("`.streamlit/secrets.toml` に `SUPABASE_URL` と `SUPABASE_KEY` を設定してください。")
         st.stop()
 
-    # 検索バー
-    search = st.text_input(
-        "search", placeholder="🔍  タスク・担当者を検索...",
-        label_visibility="collapsed",
-    )
-    if search:
-        q = search.lower()
-        tasks = [t for t in tasks
-                 if q in t["title"].lower() or q in t.get("assignee", "").lower()]
-
-    if page == "kanban":
-        render_kanban(tasks)
+    if page == "timeline":
+        render_timeline(tasks)
     else:
-        render_assignee(tasks)
+        # 検索バー（カンバン・担当者別のみ）
+        search = st.text_input(
+            "search", placeholder="🔍  タスク・担当者を検索...",
+            label_visibility="collapsed",
+        )
+        if search:
+            q = search.lower()
+            tasks = [t for t in tasks
+                     if q in t["title"].lower() or q in t.get("assignee", "").lower()]
+
+        if page == "kanban":
+            render_kanban(tasks)
+        else:
+            render_assignee(tasks)
 
 elif page == "new_task":
     render_new_task()

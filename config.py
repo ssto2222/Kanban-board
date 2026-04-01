@@ -15,6 +15,7 @@ COL_META = {c["key"]: c for c in COLUMNS}
 NAV_PAGES = [
     ("📋 カンバン",   "kanban"),
     ("👤 担当者別",  "assignee"),
+    ("📅 タイムライン", "timeline"),
     ("➕ 新規タスク", "new_task"),
 ]
 
