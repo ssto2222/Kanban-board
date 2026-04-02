@@ -78,8 +78,21 @@ def deadline_html(deadline_str: str) -> str:
 @st.fragment
 def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
     val_key = f"{key_prefix}_color_val"
-    if val_key not in st.session_state: st.session_state[val_key] = default_color
-    swatches = ["#FFD166", "#FF4B4B", "#FF9F1C", "#00D2D3", "#1DD1A1", "#54a0ff", "#5f27cd"]
+
+    if val_key not in st.session_state:
+        st.session_state[val_key] = default_color
+
+    st.caption("プリセットから選択")
+    swatches = [
+        "#FFD166",  # 黄（標準/待機）
+        "#FF4B4B",  # 赤（緊急/停止）
+        "#FF9F1C",  # 橙（警告/注意）
+        "#00D2D3",  # ターコイズ（進行中）
+        "#1DD1A1",  # 緑（完了/正常）
+        "#FF54EB",  # 青（担当者A）
+        "#5f27cd",  # 紫（重要/担当者B）
+    ]
+
     cols = st.columns(len(swatches))
     for i, sw in enumerate(swatches):
         with cols[i]:
