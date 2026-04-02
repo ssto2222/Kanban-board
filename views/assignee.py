@@ -3,6 +3,31 @@ import streamlit as st
 from config import COLUMNS
 from components.card import render_card
 
+# --- 担当者リストを取得する部分 ---
+# 全タスクから担当者名のユニークなセットを作成
+all_assignees = list(set(t.get("assignee") for t in tasks))
+
+# 🌟 優先順位を決めてソートする 🌟
+def assignee_sort_key(name):
+    # 未設定(None, 空文字) または "共通" "全体" などのキーワードを最優先(-1)にする
+    priority_names = [None, "", "未設定", "共通", "全体"]
+    if name in priority_names:
+        return (-1, "") # 数値が小さいほど上にくる
+    return (0, str(name)) # それ以外は辞書順(あいうえお順)
+
+# カスタムソートを適用
+sorted_assignees = sorted(all_assignees, key=assignee_sort_key)
+
+# --- 描画ループ ---
+for assignee in sorted_assignees:
+    display_name = assignee if assignee else "👤 未設定 / 共通"
+    st.subheader(display_name)
+    
+    # その担当者のタスクだけをフィルタリング
+    person_tasks = [t for t in tasks if t.get("assignee") == assignee]
+    
+    # 完了したものをグレーにするロジックを含めた render_card を呼び出す
+    # ... (レンダリング処理)
 
 def render_assignee(tasks: list[dict]) -> None:
     """担当者別ビュー。担当者ごとにセクションを作り 3列で表示。"""
