@@ -1,5 +1,5 @@
 import streamlit as st
-from datetime import date
+from datetime import date, datetime
 
 from config import COLUMNS, COL_KEYS
 from db.tasks import create_task, load_tasks
@@ -11,7 +11,7 @@ def render_new_task() -> None:
 
     fv = st.session_state.get("nt_form_ver", 0)
 
-    # 既存の担当者リストを取得（選択肢として表示）
+    # 既存の担当者リストを取得
     try:
         all_tasks = load_tasks()
         existing_assignees = sorted(list(set(
@@ -29,7 +29,7 @@ def render_new_task() -> None:
     if is_milestone:
         st.info("🔷 マイルストーンとして登録されます。期限（実施日）を必ず入力してください。")
 
-    # 担当者選択（既存から選ぶか新規入力）
+    # 担当者選択
     c1, c2 = st.columns([0.4, 0.6])
     with c1:
         selected_assignee = st.selectbox(
@@ -51,15 +51,14 @@ def render_new_task() -> None:
 
     note = st.text_input("メモ・詳細", key=f"nt_note_{fv}")
 
-    # 作業期間（マイルストーン以外）
+    # 作業期間
+    started_at = ""
+    finished_at = ""
     if not is_milestone:
         st.divider()
         st.caption("作業期間を設定する場合（タイムラインにバーで表示されます）")
         started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s")
         finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f")
-    else:
-        started_at  = ""
-        finished_at = ""
 
     st.divider()
     default_ms_color = "#E94560" if is_milestone else "#FFD166"
@@ -67,10 +66,31 @@ def render_new_task() -> None:
 
     # ── 登録処理 ────────────────────────────────────────────────────────
     if st.button("登録する", type="primary", use_container_width=True, key=f"nt_submit_{fv}"):
+        # 1. 必須チェック
         if not title.strip():
             st.error("項目名を入力してください")
             return
 
+        # 2. 🌟 バリデーション：日時の整合性チェック
+        if not is_milestone and finished_at:
+            try:
+                f_dt = datetime.strptime(finished_at, "%Y-%m-%d %H:%M")
+                
+                # 終了日時が期限（日）を超えていないか
+                if deadline and f_dt.date() > deadline:
+                    st.error(f"❌ 終了日時は期限（{deadline}）以前に設定してください")
+                    return
+                
+                # 開始日時が終了日時より前か
+                if started_at:
+                    s_dt = datetime.strptime(started_at, "%Y-%m-%d %H:%M")
+                    if s_dt > f_dt:
+                        st.error("❌ 開始日時は終了日時より前に設定してください")
+                        return
+            except ValueError:
+                pass # 形式エラーは dt_input 側で空文字になるため無視
+
+        # データの構築
         final_title = f"🔷 {title.strip()}" if is_milestone else title.strip()
         final_note  = f"[MS] {note.strip()}" if is_milestone else note.strip()
         color = st.session_state.get(f"nt_{fv}_color_val", default_ms_color)
