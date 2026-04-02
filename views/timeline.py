@@ -11,7 +11,6 @@ _CSS = """
 .tl-wrap { background: #1a1a2e; border-radius: 8px; padding: 8px 0; overflow-x: auto; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
 .tl-axis-row { display: flex; align-items: flex-end; height: 45px; border-bottom: 2px solid #444; position: sticky; top: 0; background: #1a1a2e; z-index: 20; }
 .tl-group-col { width: 140px; min-width: 140px; flex-shrink: 0; border-right: 1px solid #444; }
-/* 横軸が窮屈にならないよう min-width を view_mode に合わせる工夫も可能ですが、一律 1000px 以上を確保 */
 .tl-chart-col { flex: 1; position: relative; height: 45px; min-width: 1000px; }
 .tl-tick { position: absolute; font-size: 10px; color: #9a9ab0; text-align: center; transform: translateX(-50%); line-height: 1.2; padding-bottom: 5px; }
 .tl-tick.sat { color: #4ecca3; font-weight: bold; }
@@ -24,6 +23,8 @@ _CSS = """
 .tl-bar-outer { position: absolute; height: 24px; z-index: 2; cursor: pointer; transition: transform 0.2s; }
 .tl-bar-outer:hover { transform: scaleY(1.1); z-index: 5; }
 .tl-bar-fill { width: 100%; height: 100%; border-radius: 12px; box-shadow: 1px 2px 5px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; overflow: hidden; display: flex; align-items: center; padding: 0 10px; }
+/* マイルストーン用の強調スタイル */
+.tl-bar-ms { border: 2px solid #ffffff !important; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
 .tl-bar-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: bold; color: #fff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 1px 4px rgba(0,0,0,0.8); pointer-events: none; width: 100%; }
 </style>
 """
@@ -50,16 +51,15 @@ def render_timeline(tasks: list[dict]) -> None:
         )
 
     # ── 2. 表示範囲とインターバルの決定 ──────────────────
-    # モードに合わせて、今日を基準とした前後表示日数を計算
     if "日次" in view_mode:
         days_back, days_fwd = 3, 11
         interval = timedelta(days=1)
     elif "週次" in view_mode:
         days_back, days_fwd = 14, 46
-        interval = timedelta(days=1) # グリッドは毎日、ラベルを週1にする
+        interval = timedelta(days=1)
     else: # 月次
         days_back, days_fwd = 30, 150
-        interval = timedelta(days=2) # 密度を下げて描画負荷を軽減
+        interval = timedelta(days=2)
 
     chart_min = today - timedelta(days=days_back)
     chart_max = today + timedelta(days=days_fwd)
@@ -73,33 +73,38 @@ def render_timeline(tasks: list[dict]) -> None:
     for t in tasks:
         if t.get("column") == "done": continue
 
+        title = t.get("title", "無題")
+        is_ms = "🔷" in title # タイトルに🔷があればマイルストーンとみなす
+        
         s = parse_dt(t.get("started_at"))
         e = parse_dt(t.get("finished_at"))
         deadline_str = t.get("deadline", "")
         status = t.get("column", "todo")
         
-        if not s and not deadline_str: continue
-        
+        # 開始・終了がないが期限がある場合はマイルストーン表示（期限の前日〜当日）
         if not s and deadline_str:
             try:
                 d_dt = datetime.strptime(deadline_str, "%Y-%m-%d").replace(tzinfo=JST)
                 s = d_dt - timedelta(days=1)
+                e = d_dt
             except: continue
 
+        if not s: continue
         if s and not e: e = s + timedelta(hours=23)
 
-        # 範囲外のタスクは除外、またはトリミング
+        # 範囲外のタスクは除外
         if e < chart_min or s > chart_max: continue
         
         display_color = get_priority_color(deadline_str, t.get("color", "#FFD166"), column=status)
 
-        if s and e and s < e:
+        if s and e and s <= e:
             processed_rows.append({
-                "title": t.get("title", "無題"),
-                "start": max(s, chart_min), # 左側トリミング
-                "end": min(e, chart_max),   # 右側トリミング
+                "title": title,
+                "start": max(s, chart_min),
+                "end": min(e, chart_max),
                 "group": _get_group_label(t, group_by),
-                "color": display_color
+                "color": display_color,
+                "is_ms": is_ms
             })
 
     # ── 4. 目盛り生成 ──────────────────────────
@@ -109,21 +114,13 @@ def render_timeline(tasks: list[dict]) -> None:
         p = get_pct(curr)
         if 0 <= p <= 100:
             wd = _get_wd(curr)
-            # ラベル表示の条件をモードで切り替え
-            show_label = False
+            label = ""
             if "日次" in view_mode:
-                show_label = True
                 label = f"{curr.strftime('%m/%d')}<br>({wd})"
             elif "週次" in view_mode:
-                if curr.weekday() == 0: # 月曜日のみラベル表示
-                    show_label = True
-                    label = f"{curr.strftime('%m/%d')}"
-                else: label = ""
+                if curr.weekday() == 0: label = f"{curr.strftime('%m/%d')}"
             else: # 月次
-                if curr.day == 1 or curr.day == 15: # 1日と15日のみ
-                    show_label = True
-                    label = f"{curr.strftime('%m/%d')}"
-                else: label = ""
+                if curr.day == 1 or curr.day == 15: label = f"{curr.strftime('%m/%d')}"
             
             ticks.append((p, label, curr.weekday()))
         curr += interval
@@ -159,21 +156,22 @@ def render_timeline(tasks: list[dict]) -> None:
         h.append(f'<div class="tl-group-name" title="{html_mod.escape(grp)}">{html_mod.escape(grp)}</div>')
         h.append('<div class="tl-chart-area">')
         
-        # グリッド線
         for p, _, _ in ticks: 
             h.append(f'<div class="tl-gridline" style="left:{p:.2f}%"></div>')
         
-        # 今日のライン
         tp = get_pct(datetime.now(JST))
         if 0 <= tp <= 100: h.append(f'<div class="tl-today-line" style="left:{tp:.2f}%"></div>')
         
-        # タスクバー
         for t, lane_idx in task_layout:
             left, width = get_pct(t["start"]), max(get_pct(t["end"]) - get_pct(t["start"]), 1.0)
             top = ROW_PADDING + lane_idx * (BAR_HEIGHT + BAR_MARGIN)
             title = html_mod.escape(t["title"])
+            
+            # マイルストーンならクラスを追加
+            ms_class = " tl-bar-ms" if t.get("is_ms") else ""
+            
             h.append(f'<div class="tl-bar-outer" style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;">'
-                     f'<div class="tl-bar-fill" style="background:{t["color"]};" title="{title}">'
+                     f'<div class="tl-bar-fill{ms_class}" style="background:{t["color"]};" title="{title}">'
                      f'<div class="tl-bar-name">{title}</div></div></div>')
         h.append('</div></div>')
 
