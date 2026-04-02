@@ -1,7 +1,8 @@
 import streamlit as st
-from config import COLUMNS, COL_KEYS, COL_META
-from db.tasks import update_task
-from utils.helpers import darken, deadline_html, html_mod, get_priority_color
+
+from config import COLUMNS, COL_META
+from utils.helpers import darken, deadline_html, html_mod
+
 
 def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
     """
@@ -60,28 +61,6 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
         unsafe_allow_html=True,
     )
 
-    # ── アクションボタン (◀ ✏️ ▶) ──────────────────────────────────────────────
-    b_l, b_e, b_r = st.columns(3)
-
-    with b_l:
-        # 左へ移動
-        if col_idx > 0:
-            if st.button("◀", key=f"l_{task['id']}", use_container_width=True):
-                update_task(task["id"], {"column": COL_KEYS[col_idx - 1]})
-                st.rerun()
-        else:
-            st.button(" ", key=f"l_off_{task['id']}", disabled=True, use_container_width=True)
-
-    with b_e:
-        # 編集ダイアログを開く
-        if st.button("✏️", key=f"e_{task['id']}", use_container_width=True):
-            task_dialog(task)
-
-    with b_r:
-        # 右へ移動
-        if col_idx < 2:
-            if st.button("▶", key=f"r_{task['id']}", use_container_width=True):
-                update_task(task["id"], {"column": COL_KEYS[col_idx + 1]})
-                st.rerun()
-        else:
-            st.button(" ", key=f"r_off_{task['id']}", disabled=True, use_container_width=True)
+    # カード底部に融合した編集ボタン（クリックでダイアログを開く）
+    if st.button("✏ 編集", key=f"e_{task['id']}", use_container_width=True):
+        task_dialog(task)
