@@ -1,7 +1,7 @@
 import streamlit as st
 
 from config import COLUMNS, COL_META
-from utils.helpers import darken, deadline_html, html_mod
+from utils.helpers import darken, deadline_html, html_mod, get_priority_color
 
 
 def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
