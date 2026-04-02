@@ -7,8 +7,7 @@ from utils.helpers import darken, deadline_html, get_priority_color
 def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
     """
     タスクカードを描画する。
-    タイトルのみを常時表示し、詳細は折りたたみ（Expander）。
-    編集・削除は右肩のメニュー（Popover）から実行。
+    タイトルを常時表示、Expanderのラベルに期限を表示。
     """
     # 循環インポート回避
     from components.dialog import task_dialog
@@ -16,8 +15,9 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
     # ── 1. 色と基本情報の確定 ──
     original_color = task.get("color", "#FFD166")
     current_status = task.get("column", "todo")
+    deadline_val = task.get("deadline", "")
     # 期限による自動色上書き（期限切れは赤など）
-    c = get_priority_color(task.get("deadline", ""), original_color, column=current_status)
+    c = get_priority_color(deadline_val, original_color, column=current_status)
     
     # カラム情報
     col_def = COL_META.get(current_status, COLUMNS[0])
@@ -26,55 +26,61 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
     task_id = task.get("id")
 
     # ── 2. カード外枠コンテナ ──
-    # border=True を使うことでカードらしい外観に
     with st.container(border=True):
         
         # ── 3. ヘッダー行（タイトル + メニュー） ──
-        # タイトルを左、メニューを右に配置
         h_left, h_right = st.columns([0.85, 0.15])
         
         with h_left:
-            # タイトルを表示（マイルストーンアイコン等があればそのまま表示）
             st.markdown(f"**{title}**")
-            # 視認性のための細いカラーバー（カード上部）
+            # 優先度/期限状態を示すカラーバー
             st.markdown(
                 f'<div style="height:3px; background:{c}; width:40px; border-radius:2px; margin-top:-5px;"></div>',
                 unsafe_allow_html=True
             )
 
         with h_right:
-            # 右肩の「・・・」メニュー
-            with st.popover("⋮", help="編集・操作"):
+            with st.popover("⋮", help="メニュー"):
                 if st.button("📝 編集", key=f"btn_edit_{task_id}_{col_idx}", use_container_width=True):
                     task_dialog(task)
                 
-                # 削除が必要な場合はここに追加
-            
+                if st.button("🗑️ 削除", key=f"btn_del_{task_id}_{col_idx}", use_container_width=True):
+                    from db.tasks import delete_task
+                    delete_task(task_id)
+                    st.rerun()
 
         # ── 4. 折りたたみ詳細部分（Expander） ──
-        # ラベルには期限を表示
-        with st.expander(f"⏳ {deadline_html(task.get("deadline", ""))}", expanded=False):
-            # ステータス表示（必要時）
+        # ラベルに期限を表示（プレーンテキストで表示）
+        exp_label = f"⏳ 期限: {deadline_val if deadline_val else '未設定'}"
+        with st.expander(exp_label, expanded=False):
+            
+            # 開いた時に最初に見える情報（担当者とカラー期限バッジ）
+            st.markdown(f"**👤 担当者:** {html_mod.escape(assignee)}")
+            
+            dl_html = deadline_html(deadline_val)
+            if dl_html:
+                st.markdown(f"**⏳ 状態:** {dl_html}", unsafe_allow_html=True)
+
+            # ステータス表示（担当者別ビューなどの場合）
             if show_status:
                 st.markdown(
-                    f'<span class="status-pill" style="background:{col_def["bg"]}; color:white; padding:2px 8px; border-radius:10px; font-size:0.8em;">'
-                    f'{col_def["label"]}</span>', 
+                    f'<div style="margin-top:8px;"><span class="status-pill" style="background:{col_def["bg"]}; color:white; padding:2px 8px; border-radius:10px; font-size:0.8em;">'
+                    f'{col_def["label"]}</span></div>', 
                     unsafe_allow_html=True
                 )
             
-            # 期限表示
-            dl = deadline_html(task.get("deadline", ""))
-            if dl:
-                st.markdown(f'<div style="margin: 8px 0;">{dl}</div>', unsafe_allow_html=True)
-
             # 期間表示
             if task.get("started_at") or task.get("finished_at"):
-                st.caption(f"🕑 {task.get('started_at', '未設定')} ～ {task.get('finished_at', '未設定')}")
+                st.markdown(
+                    f'<div style="font-size:0.85em; color:#666; margin-top:8px;">'
+                    f'🕑 {task.get("started_at", "-")} ～ {task.get("finished_at", "-")}</div>',
+                    unsafe_allow_html=True
+                )
 
             # メモ
             if task.get("note"):
                 st.markdown(
-                    f'<div style="background:rgba(0,0,0,0.05); padding:8px; border-radius:5px; font-size:0.9em; margin-top:8px;">'
+                    f'<div style="background:rgba(0,0,0,0.05); padding:8px; border-radius:5px; font-size:0.9em; margin-top:8px; border-left:3px solid {c};">'
                     f'{html_mod.escape(task["note"])}</div>',
                     unsafe_allow_html=True
                 )
