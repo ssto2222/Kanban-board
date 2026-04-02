@@ -89,3 +89,27 @@ def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
         st.rerun(scope="fragment")
 
     return st.session_state[val_key]
+def get_priority_color(deadline_str: str, original_color: str) -> str:
+    """
+    期限に応じて色を上書きする。
+    - 期限切れ: 赤 (#FF4B4B)
+    - 2日以内: 橙 (#FF9F1C)
+    - それ以外: 元の色
+    """
+    if not deadline_str or deadline_str == "None":
+        return original_color
+    
+    try:
+        # deadline_str は "2026-04-02" 形式と想定
+        dt = datetime.strptime(str(deadline_str), "%Y-%m-%d").date()
+        today = datetime.now(JST).date()
+        diff = (dt - today).days
+
+        if diff < 0:
+            return "#FF4B4B"  # 自動的に赤（期限切れ）
+        elif diff <= 2:
+            return "#FF9F1C"  # 自動的に橙（期限間近）
+        else:
+            return original_color # 通常
+    except:
+        return original_color
