@@ -10,11 +10,12 @@ def load_tasks() -> list[dict]:
 
 
 def create_task(data: dict):
-    # NULL制約エラーを防ぐためのクリーニング
-    clean_data = {
-        k: (v if v is not None else "") for k, v in data.items()
-    }
-    return get_supabase().table("tasks").insert(clean_data).execute()
+    """タスクを新規作成する"""
+    # 値が None または "" (空文字) のキーは、DBの自動デフォルト値に任せるため除外する
+    # これにより、id などの自動生成カラムが正しく動作します
+    filtered_data = {k: v for k, v in data.items() if v is not None and v != ""}
+    
+    return get_supabase().table("tasks").insert(filtered_data).execute()
     
     get_supabase().table("tasks").insert({
         "id":         str(uuid.uuid4()),
