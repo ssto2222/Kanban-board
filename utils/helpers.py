@@ -75,40 +75,34 @@ def dt_input(label: str, existing: str, key_prefix: str = "") -> str:
 
 # ── カラーピッカー + スウォッチ ───────────────────────────────────────────────
 
-def color_picker_with_swatches(prefix: str, default: str = "#FFD166") -> str:
-    """
-    カラーピッカーとプリセットスウォッチを描画し、選択色を返す。
-    prefix でセッションステートのキーを名前空間化する。
-
-    仕組み:
-      - スウォッチクリック時に {prefix}_ver をインクリメント
-      - カラーピッカーのキーを {prefix}_cp_{ver} にすることで
-        新しいキーとして扱われ value= が初期値として使われる
-      - widget key でない {prefix}_color には自由に書き込める
-    """
-    ver   = st.session_state.get(f"{prefix}_ver", 0)
-    color = st.color_picker(
-        "付箋の色",
-        value=st.session_state.get(f"{prefix}_color", default),
-        key=f"{prefix}_cp_{ver}",
+def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
+    """カラーパレット選択。default_color 引数を追加。"""
+    st.write("カラー選択")
+    
+    # プリセットカラー
+    swatches = [
+        "#FFD166", "#06D6A0", "#118AB2", "#EF476F", 
+        "#073B4C", "#E94560", "#4ECCA3"
+    ]
+    
+    # セッションから前回の値を取得、なければ default_color
+    current_color = st.session_state.get(f"{key_prefix}_color_val", default_color)
+    
+    # スウォッチ（色見本）の表示
+    cols = st.columns(len(swatches))
+    for i, sw in enumerate(swatches):
+        with cols[i]:
+            if st.button("●", key=f"{key_prefix}_sw_{i}", help=sw):
+                st.session_state[f"{key_prefix}_color_val"] = sw
+                st.rerun()
+                
+    # カラーピッカー本体
+    chosen = st.color_picker(
+        "カスタム色", 
+        value=current_color, 
+        key=f"{key_prefix}_cp"
     )
-    # 手動操作をステートに反映
-    st.session_state[f"{prefix}_color"] = color
-
-    st.caption("プリセットカラー（クリックで選択）")
-    sw_cols = st.columns(len(STICKY_COLORS))
-    for i, sc in enumerate(STICKY_COLORS):
-        selected = st.session_state.get(f"{prefix}_color", default).upper() == sc.upper()
-        with sw_cols[i]:
-            border = "outline:2px solid #fff;outline-offset:1px;" if selected else ""
-            st.markdown(
-                f'<div style="background:{sc};height:20px;border-radius:4px;'
-                f'{border}margin-bottom:2px"></div>',
-                unsafe_allow_html=True,
-            )
-            if st.button("✓" if selected else " ", key=f"{prefix}_sw_{i}",
-                         use_container_width=True, help=sc):
-                st.session_state[f"{prefix}_color"] = sc
-                st.session_state[f"{prefix}_ver"]   = ver + 1
-
-    return st.session_state.get(f"{prefix}_color", default)
+    
+    # 最終的な色をセッションに保存して返す
+    st.session_state[f"{key_prefix}_color_val"] = chosen
+    return chosen
