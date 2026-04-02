@@ -21,25 +21,25 @@ def get_priority_color(deadline_str: str, original_color: str, column: str = "to
     1. 完了(done)ステータスなら無条件でグレイ
     2. 未完了なら期限に応じて 赤(切) > 橙(間近) > 元の色
     """
-         
+    # 🌟 1. まずステータスをチェック（期限の有無に関わらずグレーにする）
+    if column == "done":
+        return "#4a4a6a"
+    
     # 期限設定がない場合は元の色
     if not deadline_str or deadline_str == "None":
         return original_color
 
     try:
-        if column == "done":
-            return "#4a4a6a"
-        else:
-            dt = datetime.strptime(str(deadline_str), "%Y-%m-%d").date()
-            today = datetime.now(JST).date()
-            diff = (dt - today).days
+        dt = datetime.strptime(str(deadline_str), "%Y-%m-%d").date()
+        today = datetime.now(JST).date()
+        diff = (dt - today).days
     
-            if diff < 0:
-                return "#FF4B4B"  # 期限切れ：赤
-            if diff <= 2:
-                return "#FF9F1C"  # 期限間近：橙
+        if diff < 0:
+            return "#FF4B4B"  # 期限切れ：赤
+        if diff <= 2:
+            return "#FF9F1C"  # 期限間近：橙
         
-            return original_color
+        return original_color
     except:
         return original_color
 
