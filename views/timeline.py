@@ -248,10 +248,7 @@ def render_timeline(tasks: list[dict]) -> None:
 
     st.divider()
 
-    if mode == "📊 ガントチャート":
-        html = _gantt_html(tasks, group_by)
-    else:
-        html = _milestone_html(tasks, group_by)
+    html = _gantt_html(tasks, group_by, view_mode)
 
     if html is None:
         st.info("表示できるタスクがありません。開始日時または期限が設定されたタスクを追加してください。")
@@ -262,7 +259,14 @@ def render_timeline(tasks: list[dict]) -> None:
 
 # ── ガントチャート ────────────────────────────────────────────────────────────
 
-def _gantt_html(tasks: list[dict], group_by: str) -> str | None:
+_SPAN_DAYS = {
+    "日次 (2週間)": 14,
+    "週次 (2ヶ月)": 60,
+    "月次 (6ヶ月)": 180,
+}
+
+
+def _gantt_html(tasks: list[dict], group_by: str, view_mode: str = "日次 (2週間)") -> str | None:
     rows = []
     for t in tasks:
         s = _parse_dt(t.get("started_at", ""))
@@ -291,12 +295,13 @@ def _gantt_html(tasks: list[dict], group_by: str) -> str | None:
         return None
 
     today = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    all_dates = [r["start"] for r in rows] + [r["end"] for r in rows] + [today]
-    min_dt = min(all_dates) - timedelta(days=3)
-    max_dt = max(all_dates) + timedelta(days=3)
-    # 最低7日間の幅を確保
-    if (max_dt - min_dt).days < 7:
-        max_dt = min_dt + timedelta(days=7)
+    span = _SPAN_DAYS.get(view_mode, 14)
+    # 表示スパンを今日を中心に設定し、タスクがはみ出す場合は拡張
+    all_dates = [r["start"] for r in rows] + [r["end"] for r in rows]
+    min_dt = min(min(all_dates), today - timedelta(days=span // 4))
+    max_dt = max(max(all_dates), today + timedelta(days=span * 3 // 4))
+    if (max_dt - min_dt).days < span:
+        max_dt = min_dt + timedelta(days=span)
 
     pct = _make_pct(min_dt, max_dt)
     ticks = _month_ticks(min_dt, max_dt, pct)
