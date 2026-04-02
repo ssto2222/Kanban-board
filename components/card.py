@@ -1,67 +1,83 @@
 import streamlit as st
-
+import html as html_mod
 from config import COLUMNS, COL_META
-from utils.helpers import darken, deadline_html, html_mod, get_priority_color
+from utils.helpers import darken, deadline_html, get_priority_color
 
 
 def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
     """
-    付箋カードを描画する。
-    期限切れは赤、間近は橙に自動で色を上書きして表示。
+    タスクカードを描画する。
+    タイトルのみを常時表示し、詳細は折りたたみ（Expander）。
+    編集・削除は右肩のメニュー（Popover）から実行。
     """
-    # 循環インポート回避のため dialog は関数内でインポート
+    # 循環インポート回避
     from components.dialog import task_dialog
 
-    # ── 色の決定 (期限による自動上書きロジックを適用) ──
-   # ── 色の決定 (修正後：第3引数に現在のステータスを渡す) ──
+    # ── 1. 色と基本情報の確定 ──
     original_color = task.get("color", "#FFD166")
-    current_status = task.get("column", "todo") # 現在のステータスを取得
+    current_status = task.get("column", "todo")
+    # 期限による自動色上書き（期限切れは赤など）
     c = get_priority_color(task.get("deadline", ""), original_color, column=current_status)
     
-    # カラムのメタ情報取得
-    col_def = COL_META.get(task.get("column", "todo"), COLUMNS[0])
+    # カラム情報
+    col_def = COL_META.get(current_status, COLUMNS[0])
+    title = task.get("title", "無題")
+    assignee = task.get("assignee") or "未設定"
+    task_id = task.get("id")
 
-    # ── カードHTMLの構築 ──────────────────────────────────────────────────────
-    body: list[str] = []
+    # ── 2. カード外枠コンテナ ──
+    # border=True を使うことでカードらしい外観に
+    with st.container(border=True):
+        
+        # ── 3. ヘッダー行（タイトル + メニュー） ──
+        # タイトルを左、メニューを右に配置
+        h_left, h_right = st.columns([0.85, 0.15])
+        
+        with h_left:
+            # タイトルを表示（マイルストーンアイコン等があればそのまま表示）
+            st.markdown(f"**{title}**")
+            # 視認性のための細いカラーバー（カード上部）
+            st.markdown(
+                f'<div style="height:3px; background:{c}; width:40px; border-radius:2px; margin-top:-5px;"></div>',
+                unsafe_allow_html=True
+            )
 
-    # ステータス表示（担当者別ビューなどの場合）
-    if show_status:
-        body.append(
-            f'<span class="status-pill" style="background:{col_def["bg"]}">'
-            f'{col_def["label"]}</span>'
-        )
-    
-    # 担当者名表示（ステータス表示がOFFのとき）
-    if task.get("assignee") and not show_status:
-        body.append(f'<div style="margin-bottom:4px;">👤 {html_mod.escape(task["assignee"])}</div>')
+        with h_right:
+            # 右肩の「・・・」メニュー
+            with st.popover("⋮", help="編集・操作"):
+                if st.button("📝 編集", key=f"btn_edit_{task_id}_{col_idx}", use_container_width=True):
+                    task_dialog(task)
+                
+                # 削除が必要な場合はここに追加
+                if st.button("🗑️ 削除", key=f"btn_del_{task_id}_{col_idx}", use_container_width=True):
+                    from db.tasks import delete_task
+                    delete_task(task_id)
+                    st.rerun()
 
-    # 期限バッジ (⌛ アイコンと色付きテキスト)
-    dl = deadline_html(task.get("deadline", ""))
-    if dl:
-        body.append(f'<div style="margin-bottom:4px;">{dl}</div>')
+        # ── 4. 折りたたみ詳細部分（Expander） ──
+        # ラベルには担当者を表示
+        with st.expander(f"👤 {assignee}", expanded=False):
+            # ステータス表示（必要時）
+            if show_status:
+                st.markdown(
+                    f'<span class="status-pill" style="background:{col_def["bg"]}; color:white; padding:2px 8px; border-radius:10px; font-size:0.8em;">'
+                    f'{col_def["label"]}</span>', 
+                    unsafe_allow_html=True
+                )
+            
+            # 期限表示
+            dl = deadline_html(task.get("deadline", ""))
+            if dl:
+                st.markdown(f'<div style="margin: 8px 0;">{dl}</div>', unsafe_allow_html=True)
 
-    # 期間（開始・終了）
-    if task.get("started_at"):
-        body.append(f'<div style="font-size:0.85em;">🕐 開始: {html_mod.escape(task["started_at"])}</div>')
-    if task.get("finished_at"):
-        body.append(f'<div style="font-size:0.85em;">🕑 終了: {html_mod.escape(task["finished_at"])}</div>')
-    
-    # メモ
-    if task.get("note"):
-        body.append(f'<div style="color:#555; font-size:0.9em; margin-top:4px; border-top:1px solid rgba(0,0,0,0.1); padding-top:2px;">'
-                    f'{html_mod.escape(task["note"])}</div>')
+            # 期間表示
+            if task.get("started_at") or task.get("finished_at"):
+                st.caption(f"🕑 {task.get('started_at', '未設定')} ～ {task.get('finished_at', '未設定')}")
 
-    # HTMLレンダリング
-    # kcard-top (タイトルバー) は背景色を少し暗く(darken)して視認性を確保
-    st.markdown(
-        f'<div class="kcard">'
-        f'<div class="kcard-top" style="background:{darken(c, 0.15)}">'
-        f'{html_mod.escape(task.get("title", ""))}</div>'
-        f'<div class="kcard-body" style="background:{c}">{"".join(body)}</div>'
-        f'</div>',
-        unsafe_allow_html=True,
-    )
-
-    # カード底部に融合した編集ボタン（クリックでダイアログを開く）
-    if st.button("✏ 編集", key=f"e_{task['id']}", use_container_width=True):
-        task_dialog(task)
+            # メモ
+            if task.get("note"):
+                st.markdown(
+                    f'<div style="background:rgba(0,0,0,0.05); padding:8px; border-radius:5px; font-size:0.9em; margin-top:8px;">'
+                    f'{html_mod.escape(task["note"])}</div>',
+                    unsafe_allow_html=True
+                )
