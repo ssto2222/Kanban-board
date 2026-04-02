@@ -17,6 +17,9 @@ def get_supabase():
     return create_client(url.strip().replace('"', ''), key.strip().replace('"', ''))
 
 # ── ヘルパー ──────────────────────────────────────────────────────────────────
+def _get_wd(dt: datetime) -> str:
+    return ["月", "火", "水", "木", "金", "土", "日"][dt.weekday()]
+
 def _parse_dt(s: str) -> datetime | None:
     if not s: return None
     for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
@@ -38,10 +41,10 @@ def render_timeline(tasks: list[dict]) -> None:
     with ctrl_l:
         group_by = st.radio("グループ分け", ["担当者", "ステータス"], horizontal=True, key="tl_grp")
     
-    # 1. データ整形と期間決定
+    # 1. データ整形
     valid_tasks = []
-    min_date = datetime.now() - timedelta(days=1)
-    max_date = datetime.now() + timedelta(days=14)
+    min_date = datetime.now().replace(hour=0, minute=0, second=0)
+    max_date = min_date + timedelta(days=14) # デフォルト2週間
 
     for t in tasks:
         start = _parse_dt(t.get("started_at")) or _parse_dt(t.get("deadline"))
@@ -49,92 +52,72 @@ def render_timeline(tasks: list[dict]) -> None:
         if not start: continue
         if not end or end <= start: end = start + timedelta(hours=4)
         
-        valid_tasks.append({
-            "title": t.get("title", "無題"),
-            "start": start,
-            "end": end,
-            "group": _get_group_label(t, group_by),
-            "color": t.get("color", "#FFD166"),
-            "assignee": t.get("assignee") or "―"
-        })
-        min_date = min(min_date, start)
-        max_date = max(max_date, end)
+        valid_tasks.append({"title": t.get("title", "無題"), "start": start, "end": end, "group": _get_group_label(t, group_by), "color": t.get("color", "#FFD166")})
+        min_date = min(min_date, start.replace(hour=0, minute=0))
+        max_date = max(max_date, end.replace(hour=0, minute=0) + timedelta(days=1))
 
-    if not valid_tasks:
-        st.info("表示可能なタスクがありません。")
-        return
-
-    min_date = min_date.replace(hour=0, minute=0, second=0)
-    total_sec = (max_date - min_date).total_seconds()
-    total_days = int(total_sec / 86400) + 1
+    total_days = (max_date - min_date).days
+    total_sec = total_days * 86400
 
     # 2. CSS定義
     style = f"""
     <style>
-        .tl-wrapper {{ background-color: #1a1a2e; padding: 20px; border-radius: 12px; overflow-x: auto; color: #eee; font-family: sans-serif; }}
-        .tl-row {{ display: flex; margin-bottom: 2px; position: relative; border-bottom: 1px solid #2a2a4a; min-height: 50px; }}
-        .tl-label {{ width: 100px; min-width: 100px; font-size: 11px; padding-top: 10px; color: #888; sticky: left; }}
-        .tl-track {{ position: relative; flex-grow: 1; background-image: linear-gradient(90deg, #2a2a4a 1px, transparent 1px); background-size: {100/total_days}%; min-height: 50px; }}
+        .tl-wrapper {{ background-color: #1a1a2e; padding: 10px; border-radius: 12px; overflow-x: auto; color: #eee; font-family: sans-serif; }}
+        .tl-header-row {{ display: flex; height: 40px; border-bottom: 2px solid #444; position: sticky; top: 0; z-index: 10; background: #1a1a2e; }}
+        .tl-row {{ display: flex; position: relative; border-bottom: 1px solid #2a2a4a; min-height: 60px; }}
+        .tl-label {{ width: 100px; min-width: 100px; font-size: 11px; font-weight: bold; padding: 10px 5px; color: #aaa; border-right: 1px solid #2a2a4a; overflow: hidden; }}
+        .tl-track {{ position: relative; flex-grow: 1; min-width: {total_days * 50}px; /* 1日あたり50px確保 */
+            background-image: linear-gradient(90deg, #2a2a4a 1px, transparent 1px); background-size: {100/total_days}%; }}
+        .date-cell {{ position: absolute; height: 100%; border-right: 1px solid #2a2a4a; text-align: center; font-size: 10px; }}
+        .date-cell.sat {{ color: #4ecca3; background: rgba(78, 204, 163, 0.05); }}
+        .date-cell.sun {{ color: #ff4b2b; background: rgba(255, 75, 43, 0.05); }}
         .tl-bar {{
-            position: absolute; height: 24px; border-radius: 4px; font-size: 10px; padding: 0 8px;
+            position: absolute; height: 26px; border-radius: 4px; font-size: 11px; padding: 0 8px;
             display: flex; align-items: center; color: #000; font-weight: bold;
             white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3); z-index: 2; transition: all 0.2s;
+            box-shadow: 0 3px 6px rgba(0,0,0,0.4); z-index: 2; transition: transform 0.1s;
         }}
-        .tl-bar:hover {{ z-index: 100; overflow: visible; min-width: max-content; transform: scale(1.05); }}
-        .now-line {{ position: absolute; top: 0; bottom: 0; width: 2px; background: #e94560; z-index: 5; box-shadow: 0 0 5px #e94560; }}
+        .now-line {{ position: absolute; top: 0; bottom: 0; width: 2px; background: #e94560; z-index: 5; box-shadow: 0 0 8px #e94560; }}
     </style>
     """
 
-    # 3. HTML構築 (重なり回避ロジック)
+    # 3. 日付ヘッダーの生成
+    header_html = f'<div class="tl-header-row"><div class="tl-label">グループ</div><div class="tl-track" style="min-width: {total_days*50}px;">'
+    for i in range(total_days):
+        d = min_date + timedelta(days=i)
+        w = d.weekday()
+        cls = "sat" if w == 6 else "sun" if w == 0 else "" # 日曜が0, 土曜が6(weekday()準拠なら土5, 日6)
+        cls = "sun" if w == 6 else "sat" if w == 5 else ""
+        left = (i / total_days) * 100
+        width = (1 / total_days) * 100
+        header_html += f'<div class="date-cell {cls}" style="left:{left}%; width:{width}%;">{d.month}/{d.day}<br>({_get_wd(d)})</div>'
+    header_html += '</div></div>'
+
+    # 4. タスク行の生成 (重なり回避付)
+    body_html = ""
     groups = sorted(list(set(t["group"] for t in valid_tasks)))
     now_pos = ((datetime.now() - min_date).total_seconds() / total_sec) * 100
     
-    html = '<div class="tl-wrapper">'
     for grp in groups:
         grp_tasks = [t for t in valid_tasks if t["group"] == grp]
-        # 重なり判定用の「段」リスト
-        levels: list[datetime] = [] 
-        
-        task_html = ""
+        levels: list[datetime] = []
+        task_inner = ""
         max_level = 0
         
-        # 開始順にソートして配置
         for t in sorted(grp_tasks, key=lambda x: x["start"]):
-            level = 0
-            # 空いている段を探す
-            for i, last_end in enumerate(levels):
-                if t["start"] >= last_end:
-                    level = i
-                    levels[i] = t["end"]
-                    break
-                level = i + 1
-            
-            if level >= len(levels):
-                levels.append(t["end"])
+            level = next((i for i, last_end in enumerate(levels) if t["start"] >= last_end), len(levels))
+            if level >= len(levels): levels.append(t["end"])
+            else: levels[level] = t["end"]
             
             max_level = max(max_level, level)
-            
             left = ((t["start"] - min_date).total_seconds() / total_sec) * 100
             width = ((t["end"] - t["start"]).total_seconds() / total_sec) * 100
-            top = 10 + (level * 30) # 1段につき30pxずらす
-            
-            task_html += f'''
-                <div class="tl-bar" style="left:{left}%; width:{max(width, 2)}%; top:{top}px; background-color:{t["color"]};" 
-                     title="{html_mod.escape(t["title"])}">
-                    {html_mod.escape(t["title"])}
-                </div>'''
+            task_inner += f'<div class="tl-bar" style="left:{left}%; width:{max(width, 1)}%; top:{10 + (level*32)}px; background-color:{t["color"]};" title="{html_mod.escape(t["title"])}">{html_mod.escape(t["title"])}</div>'
 
-        # 行の高さを段数に合わせて調整
-        row_height = 50 + (max_level * 30)
-        html += f'<div class="tl-row" style="height:{row_height}px;">'
-        html += f'<div class="tl-label">{grp}</div><div class="tl-track">'
-        if 0 <= now_pos <= 100:
-            html += f'<div class="now-line" style="left: {now_pos}%"></div>'
-        html += task_html
-        html += '</div></div>'
-    
-    html += '</div>'
- 
-    complete_html = f"{style}{html}"
-    st.markdown(complete_html, unsafe_allow_html=True)
+        body_html += f'<div class="tl-row" style="height:{60 + (max_level*32)}px;">'
+        body_html += f'<div class="tl-label">{grp}</div><div class="tl-track" style="min-width: {total_days*50}px;">'
+        if 0 <= now_pos <= 100: body_html += f'<div class="now-line" style="left: {now_pos}%"></div>'
+        body_html += task_inner
+        body_html += '</div></div>'
+
+    # 5. 出力 (unsafe
