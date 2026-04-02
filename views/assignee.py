@@ -14,11 +14,11 @@ def render_assignee(tasks: list[dict]) -> None:
         st.info("タスクが登録されていません。")
         return
 
-    # 1. 担当者ごとにグループ化
+    # 1. 担当者ごとにグループ化 (関数内で実行)
     groups: dict[str, list[dict]] = {}
     for t in tasks:
-        # 担当者が空、None、または特定のキーワードの場合は UNASSIGNED にまとめる
         assignee = t.get("assignee")
+        # 未設定や特定のキーワードを UNASSIGNED に統合
         if not assignee or assignee in ["", "None", "未設定", "共通", "全体"]:
             key = UNASSIGNED
         else:
@@ -26,7 +26,7 @@ def render_assignee(tasks: list[dict]) -> None:
         groups.setdefault(key, []).append(t)
 
     # 2. 表示順序の決定 (未設定を先頭、他は五十音順)
-    # 空文字を最小値（先頭）にするためのカスタムソート
+    # UNASSIGNED の場合は空文字 "" を返すことで、ソート順を最優先にする
     order = sorted(groups.keys(), key=lambda x: "" if x == UNASSIGNED else x)
 
     # 3. 描画ループ
@@ -54,9 +54,9 @@ def render_assignee(tasks: list[dict]) -> None:
                 </span>
                 <span style="font-size: 0.85em; color: #9a9ab0; margin-left: 15px;">
                     計 {len(member_tasks)} 件 ｜ 
-                    {COLUMNS[0]["label"]} {counts.get(COLUMNS[0]["key"], 0)} ・ 
-                    {COLUMNS[1]["label"]} {counts.get(COLUMNS[1]["key"], 0)} ・ 
-                    {COLUMNS[2]["label"]} {counts.get(COLUMNS[2]["key"], 0)}
+                    {COLUMNS[0]["label"]} {counts.get(COLUMNS[0].get("key"), 0)} ・ 
+                    {COLUMNS[1]["label"]} {counts.get(COLUMNS[1].get("key"), 0)} ・ 
+                    {COLUMNS[2]["label"]} {counts.get(COLUMNS[2].get("key"), 0)}
                 </span>
             </div>
             ''',
@@ -79,12 +79,9 @@ def render_assignee(tasks: list[dict]) -> None:
                 
                 # カードの描画
                 for task in col_tasks:
-                    # 以前の修正により render_card 内でステータスを見て 
-                    # 完了(done)なら自動でグレーになります
                     render_card(task, i)
 
         st.divider()
-
 
 def html_escape(s: str) -> str:
     """HTMLエスケープ処理"""
