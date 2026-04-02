@@ -61,59 +61,64 @@ def render_new_task() -> None:
         finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f")
 
     st.divider()
-    default_ms_color = "#E94560" if is_milestone else "#FFD166"
-    color_picker_with_swatches(f"nt_{fv}", default_color=default_ms_color)
+    
+    # 🌟 フラグメントの挙動を安定させるためにコンテナを使用
+    footer_container = st.container()
+    
+    with footer_container:
+        default_ms_color = "#E94560" if is_milestone else "#FFD166"
+        # カラーピッカー (fragment)
+        color_picker_with_swatches(f"nt_{fv}", default_color=default_ms_color)
 
-    # ── 登録処理 ────────────────────────────────────────────────────────
-    if st.button("登録する", type="primary", use_container_width=True, key=f"nt_submit_{fv}"):
-        # 1. 必須チェック
-        if not title.strip():
-            st.error("項目名を入力してください")
-            return
+        st.write("") # スペース確保
+        
+        # ── 登録処理 ────────────────────────────────────────────────────
+        # keyに fv を含めることで再描画時の整合性を維持
+        if st.button("登録する", type="primary", use_container_width=True, key=f"nt_submit_btn_{fv}"):
+            # 1. 必須チェック
+            if not title.strip():
+                st.error("項目名を入力してください")
+                return
 
-        # 2. 🌟 バリデーション：日時の整合性チェック
-        if not is_milestone and finished_at:
-            try:
-                f_dt = datetime.strptime(finished_at, "%Y-%m-%d %H:%M")
-                
-                # 終了日時が期限（日）を超えていないか
-                if deadline and f_dt.date() > deadline:
-                    st.error(f"❌ 終了日時は期限（{deadline}）以前に設定してください")
-                    return
-                
-                # 開始日時が終了日時より前か
-                if started_at:
-                    s_dt = datetime.strptime(started_at, "%Y-%m-%d %H:%M")
-                    if s_dt > f_dt:
-                        st.error("❌ 開始日時は終了日時より前に設定してください")
+            # 2. バリデーション：日時の整合性チェック
+            if not is_milestone and finished_at:
+                try:
+                    f_dt = datetime.strptime(finished_at, "%Y-%m-%d %H:%M")
+                    if deadline and f_dt.date() > deadline:
+                        st.error(f"❌ 終了日時は期限（{deadline}）以前に設定してください")
                         return
-            except ValueError:
-                pass # 形式エラーは dt_input 側で空文字になるため無視
+                    if started_at:
+                        s_dt = datetime.strptime(started_at, "%Y-%m-%d %H:%M")
+                        if s_dt > f_dt:
+                            st.error("❌ 開始日時は終了日時より前に設定してください")
+                            return
+                except ValueError:
+                    pass
 
-        # データの構築
-        final_title = f"🔷 {title.strip()}" if is_milestone else title.strip()
-        final_note  = f"[MS] {note.strip()}" if is_milestone else note.strip()
-        color = st.session_state.get(f"nt_{fv}_color_val", default_ms_color)
+            # データの構築
+            final_title = f"🔷 {title.strip()}" if is_milestone else title.strip()
+            final_note  = f"[MS] {note.strip()}" if is_milestone else note.strip()
+            color = st.session_state.get(f"nt_{fv}_color_val", default_ms_color)
 
-        try:
-            create_task({
-                "title":       final_title,
-                "assignee":    assignee.strip(),
-                "deadline":    deadline.strftime("%Y-%m-%d") if deadline else "",
-                "column":      status,
-                "note":        final_note,
-                "color":       color,
-                "started_at":  started_at,
-                "finished_at": finished_at,
-            })
-        except RuntimeError as e:
-            st.error(str(e))
-            return
+            try:
+                create_task({
+                    "title":       final_title,
+                    "assignee":    assignee.strip(),
+                    "deadline":    deadline.strftime("%Y-%m-%d") if deadline else "",
+                    "column":      status,
+                    "note":        final_note,
+                    "color":       color,
+                    "started_at":  started_at,
+                    "finished_at": finished_at,
+                })
+            except RuntimeError as e:
+                st.error(str(e))
+                return
 
-        _reset_form_state(fv)
-        st.session_state["_toast"] = f"「{final_title}」を追加しました"
-        st.session_state.page = "kanban"
-        st.rerun()
+            _reset_form_state(fv)
+            st.session_state["_toast"] = f"「{final_title}」を追加しました"
+            st.session_state.page = "kanban"
+            st.rerun()
 
 
 def _reset_form_state(current_ver: int) -> None:
