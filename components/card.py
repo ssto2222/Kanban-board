@@ -13,9 +13,10 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
     from components.dialog import task_dialog
 
     # ── 色の決定 (期限による自動上書きロジックを適用) ──
-    # DBに保存されている色をベースに、期限の状態に応じて赤や橙を優先する
+   # ── 色の決定 (修正後：第3引数に現在のステータスを渡す) ──
     original_color = task.get("color", "#FFD166")
-    c = get_priority_color(task.get("deadline", ""), original_color)
+    current_status = task.get("column", "todo") # 現在のステータスを取得
+    c = get_priority_color(task.get("deadline", ""), original_color, column=current_status)
     
     # カラムのメタ情報取得
     col_def = COL_META.get(task.get("column", "todo"), COLUMNS[0])
