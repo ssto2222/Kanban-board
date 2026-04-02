@@ -1,6 +1,7 @@
 import streamlit as st
 from datetime import date, datetime
 
+from config import COL_KEYS, COL_META
 from db.tasks import create_task, update_task, delete_task
 from utils.helpers import dt_input, color_picker_with_swatches
 
@@ -18,6 +19,26 @@ def task_dialog(task: dict | None = None) -> None:
                 st.session_state.pop(k, None)
         st.session_state["dlg_color"]    = task["color"] if is_edit else "#FFD166"
         st.session_state["_dlg_task_id"] = task_id
+
+    # ── ステータス移動（編集時のみ）────────────────────────────────────
+    if is_edit:
+        col_key = task.get("column", "todo")
+        col_idx = COL_KEYS.index(col_key) if col_key in COL_KEYS else 0
+        st.caption(f"現在: {COL_META[col_key]['label']}")
+        m_l, m_r = st.columns(2)
+        with m_l:
+            if col_idx > 0:
+                prev_label = COL_META[COL_KEYS[col_idx - 1]]["label"]
+                if st.button(f"← {prev_label}", key="dlg_mv_l", use_container_width=True):
+                    update_task(task["id"], {"column": COL_KEYS[col_idx - 1]})
+                    st.rerun()
+        with m_r:
+            if col_idx < len(COL_KEYS) - 1:
+                next_label = COL_META[COL_KEYS[col_idx + 1]]["label"]
+                if st.button(f"{next_label} →", key="dlg_mv_r", use_container_width=True):
+                    update_task(task["id"], {"column": COL_KEYS[col_idx + 1]})
+                    st.rerun()
+        st.divider()
 
     # ── フォームフィールド ──────────────────────────────────────────────
     title    = st.text_input("タスク名 *", value=task["title"]    if is_edit else "")

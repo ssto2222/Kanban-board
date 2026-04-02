@@ -41,12 +41,34 @@ st.markdown("""
 
 /* ── 付箋カード ── */
 .kcard {
-    border-radius: 10px;
-    box-shadow: 2px 3px 8px rgba(0,0,0,.45);
-    margin-bottom: 4px; overflow: hidden;
+    border-radius: 10px 10px 0 0;
+    box-shadow: 2px 2px 6px rgba(0,0,0,.45);
+    overflow: hidden;
 }
 .kcard-top  { padding: 7px 10px; font-weight: 700; font-size: 13px; color: #111; }
 .kcard-body { padding: 4px 10px 8px; font-size: 11px; color: #333; line-height: 1.6; }
+
+/* ── 編集ボタンをカード底部に融合 ── */
+div[data-testid="stButton"][data-key^="e_"] {
+    margin-top: -2px;
+    margin-bottom: 8px;
+}
+div[data-testid="stButton"][data-key^="e_"] > button {
+    background: rgba(0,0,0,.18) !important;
+    border: none !important;
+    border-radius: 0 0 10px 10px !important;
+    color: #555 !important;
+    font-size: 10px !important;
+    padding: 2px 8px 5px !important;
+    height: 22px !important;
+    min-height: 22px !important;
+    box-shadow: 2px 3px 6px rgba(0,0,0,.35) !important;
+    transition: background .15s, color .15s;
+}
+div[data-testid="stButton"][data-key^="e_"] > button:hover {
+    background: rgba(0,0,0,.32) !important;
+    color: #111 !important;
+}
 
 /* ── 期限カラー ── */
 .dl-ok      { color: #1a7a40; }
