@@ -12,7 +12,7 @@ _CSS = """
 .tl-axis-row { display: flex; align-items: flex-end; height: 45px; border-bottom: 2px solid #444; position: sticky; top: 0; background: #1a1a2e; z-index: 20; }
 .tl-group-col { width: 140px; min-width: 140px; flex-shrink: 0; border-right: 1px solid #444; }
 .tl-chart-col { flex: 1; position: relative; height: 45px; }
-.tl-tick { position: absolute; font-size: 10px; color: #9a9ab0; text-align: center; transform: translateX(-50%); line-height: 1.2; padding-bottom: 5px; }
+.tl-tick { position: absolute; font-size: 10px; color: #9a9ab0; text-align: center; transform: translateX(-50%); line-height: 1.2; padding-bottom: 5px; white-space: nowrap; }
 .tl-tick.sat { color: #4ecca3; font-weight: bold; }
 .tl-tick.sun { color: #ff4b2b; font-weight: bold; }
 .tl-row { display: flex; align-items: stretch; border-bottom: 1px solid #2a2a4a; position: relative; }
@@ -49,8 +49,7 @@ def render_timeline(tasks: list[dict]) -> None:
             key="tl_scale"
         )
 
-    # ── 2. 表示範囲と横幅の決定 ──────────────────
-    chart_min_width = 1000
+    # ── 2. 表示範囲と横幅・グリッド間隔の決定 ──────────────────
     if "日次" in view_mode:
         days_back, days_fwd, interval = 3, 11, timedelta(days=1)
         chart_min_width = 1000
@@ -58,11 +57,13 @@ def render_timeline(tasks: list[dict]) -> None:
         days_back, days_fwd, interval = 14, 46, timedelta(days=1)
         chart_min_width = 1200
     elif "月次" in view_mode:
-        days_back, days_fwd, interval = 30, 150, timedelta(days=2)
-        chart_min_width = 1600
+        # 6ヶ月表示: グリッドを3日おきにして重なりを防ぐ
+        days_back, days_fwd, interval = 30, 150, timedelta(days=3)
+        chart_min_width = 1800
     else: # 年次 (12ヶ月)
-        days_back, days_fwd, interval = 30, 335, timedelta(days=5) # 密度を下げる
-        chart_min_width = 2400 # 1年分なので横に長く
+        # 12ヶ月表示: グリッドを7日（週1）にして負荷軽減
+        days_back, days_fwd, interval = 30, 335, timedelta(days=7)
+        chart_min_width = 2800 
 
     chart_min = today - timedelta(days=days_back)
     chart_max = today + timedelta(days=days_fwd)
@@ -104,22 +105,31 @@ def render_timeline(tasks: list[dict]) -> None:
             "is_ms": is_ms
         })
 
-    # ── 4. 目盛り生成 ──────────────────────────
+    # ── 4. 目盛り生成 (ラベルの重なり防止) ──────────────────────────
     ticks = []
     curr = chart_min.replace(hour=0, minute=0, second=0, microsecond=0)
+    last_month = -1
     while curr <= chart_max:
         p = get_pct(curr)
         if 0 <= p <= 100:
             wd = _get_wd(curr)
             label = ""
+            
             if "日次" in view_mode:
                 label = f"{curr.strftime('%m/%d')}<br>({wd})"
             elif "週次" in view_mode:
                 if curr.weekday() == 0: label = f"{curr.strftime('%m/%d')}"
             elif "月次" in view_mode:
-                if curr.day == 1 or curr.day == 15: label = f"{curr.strftime('%m/%d')}"
+                # 1日と15日付近のみ表示
+                if curr.day <= 3 or (14 <= curr.day <= 17):
+                    if curr.day == 1 or curr.day == 15 or (curr.day > 1 and (curr-interval).month != curr.month):
+                        label = f"<b>{curr.strftime('%m/%d')}</b>"
             else: # 年次
-                if curr.day == 1: label = f"<b>{curr.strftime('%Y/%m')}</b>"
+                # 月が変わった最初の目盛りで年月を表示
+                if curr.month != last_month:
+                    label = f"<span style='color:#fff; font-size:11px;'>{curr.strftime('%Y/%m')}</span>"
+                    last_month = curr.month
+            
             ticks.append((p, label, curr.weekday()))
         curr += interval
 
