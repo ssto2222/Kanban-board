@@ -103,8 +103,6 @@ def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
     st.caption("プリセットから選択")
     swatches = [
         "#FFD166",  # 黄（標準/待機）
-        "#FF4B4B",  # 赤（緊急/停止）
-        "#FF9F1C",  # 橙（警告/注意）
         "#00D2D3",  # ターコイズ（進行中）
         "#1DD1A1",  # 緑（完了/正常）
         "#FF54EB",  # 青（担当者A）
