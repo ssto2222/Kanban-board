@@ -60,69 +60,85 @@ def render_timeline(tasks: list[dict]) -> None:
     min_date = min_date.replace(hour=0, minute=0)
     total_days = max(1, (max_date - min_date).days + 1)
     
-    # --- CSS定義 ---
+   # --- CSS定義（改善版） ---
     st.markdown(f"""
     <style>
         .timeline-container {{
             background-color: #1a1a2e;
-            padding: 20px;
-            border-radius: 10px;
-            overflow-x: auto;
+            padding: 20px 10px;
+            border-radius: 12px;
+            overflow-x: auto; /* 横スクロールを許可 */
             color: #eaeaea;
-            font-family: sans-serif;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
         }}
         .timeline-row {{
             display: flex;
             align-items: center;
-            margin-bottom: 10px;
-            height: 40px;
+            margin-bottom: 12px;
+            height: 50px; /* 高さを少し広げる */
             position: relative;
             border-bottom: 1px solid #2a2a4a;
         }}
         .group-label {{
-            width: 120px;
-            min-width: 120px;
-            font-size: 0.85rem;
+            width: 100px;
+            min-width: 100px;
+            font-size: 0.8rem;
             font-weight: bold;
+            color: #aaa;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
+            padding-right: 10px;
         }}
         .track {{
             position: relative;
             flex-grow: 1;
             height: 100%;
-            background-image: linear-gradient(90deg, #2a2a4a 1px, transparent 1px);
-            background-size: {100/total_days}%;
+            background-image: linear-gradient(90deg, rgba(42,42,74,0.5) 1px, transparent 1px);
+            background-size: {100/total_days if total_days > 0 else 10}%;
         }}
         .bar {{
             position: absolute;
-            height: 24px;
-            top: 8px;
-            border-radius: 4px;
-            font-size: 11px;
-            padding: 0 8px;
+            height: 30px;
+            top: 10px;
+            border-radius: 6px;
+            font-size: 12px;
+            padding: 0 10px;
             display: flex;
             align-items: center;
             color: #111;
-            font-weight: bold;
+            font-weight: 600;
             white-space: nowrap;
-            overflow: hidden;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
-            transition: transform 0.2s;
+            overflow: hidden; /* 通常時ははみ出しを隠す */
+            text-overflow: ellipsis; /* 文字が長い場合は「...」にする */
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            cursor: pointer;
+            z-index: 2;
+            transition: all 0.2s ease;
         }}
+        /* ホバーした時に内容をすべて表示する */
         .bar:hover {{
-            transform: scaleY(1.1);
-            z-index: 10;
+            z-index: 100;
             overflow: visible;
-            min-width: fit-content;
+            min-width: max-content;
+            box-shadow: 0 0 15px rgba(255,255,255,0.2);
+            transform: translateY(-2px);
         }}
         .today-line {{
             position: absolute;
             top: 0; bottom: 0;
             width: 2px;
             background-color: #e94560;
-            z-index: 5;
+            z-index: 1;
+            box-shadow: 0 0 8px #e94560;
+        }}
+        .today-label {{
+            position: absolute;
+            top: -15px;
+            left: -10px;
+            font-size: 10px;
+            color: #e94560;
+            font-weight: bold;
         }}
     </style>
     """, unsafe_allow_html=True)
