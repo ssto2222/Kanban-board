@@ -30,6 +30,8 @@ def get_priority_color(deadline_str: str, original_color: str, column: str = "to
         return original_color
 
     try:
+        if column == "done":
+            pass
         dt = datetime.strptime(str(deadline_str), "%Y-%m-%d").date()
         today = datetime.now(JST).date()
         diff = (dt - today).days
