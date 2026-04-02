@@ -44,6 +44,9 @@ def render_timeline(tasks: list[dict]) -> None:
     # 1. データ加工
     processed_rows = []
     for t in tasks:
+        # 🌟 追加：ステータスが "done" の場合はスキップする
+        if t.get("column") == "done":
+            continue
         s = parse_dt(t.get("started_at"))
         e = parse_dt(t.get("finished_at"))
         deadline_str = t.get("deadline", "")
