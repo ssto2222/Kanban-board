@@ -124,11 +124,23 @@ if page in ("kanban", "assignee", "timeline"):
     if page == "timeline":
         render_timeline(tasks)
     else:
-        # 検索バー
-        search = st.text_input("search", placeholder="🔍 タスク・担当者を検索...", label_visibility="collapsed")
+        # 検索バー + 並び替え
+        search_col, sort_col = st.columns([5, 1])
+        with search_col:
+            search = st.text_input("search", placeholder="🔍 タスク・担当者を検索...", label_visibility="collapsed")
+        with sort_col:
+            sort_by_deadline = st.toggle("期限順", value=st.session_state.get("sort_by_deadline", False))
+            st.session_state["sort_by_deadline"] = sort_by_deadline
+
         if search:
             q = search.lower()
             tasks = [t for t in tasks if q in t["title"].lower() or q in (t.get("assignee") or "").lower()]
+
+        if sort_by_deadline:
+            tasks = sorted(
+                tasks,
+                key=lambda t: (t.get("deadline") or "9999-99-99"),
+            )
 
         if page == "assignee":
             render_assignee(tasks)

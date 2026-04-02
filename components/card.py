@@ -56,7 +56,11 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
         with h_right:
             with st.popover("⋮"):
                 if st.button("📝 編集", key=f"btn_edit_{task_id}_{col_idx}", use_container_width=True):
-                    task_dialog(task)
+                    st.session_state[f"_open_dialog_{task_id}"] = True
+                    st.rerun()
+
+        if st.session_state.pop(f"_open_dialog_{task_id}", False):
+            task_dialog(task)
                
 
         # アコーディオン（トップに期限）
