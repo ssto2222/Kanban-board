@@ -135,4 +135,6 @@ def render_timeline(tasks: list[dict]) -> None:
         html += '</div></div>'
     
     html += '</div>'
-    st.markdown(style + html, unsafe_allow_html=True)
+ 
+    complete_html = f"{style}{html}"
+    st.markdown(complete_html, unsafe_allow_html=True)
