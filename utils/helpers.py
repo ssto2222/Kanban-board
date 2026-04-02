@@ -73,8 +73,11 @@ def dt_input(label: str, value: str = "", key_prefix: str = "") -> str:
     return f"{d} {t.strftime('%H:%M')}" if d and t else ""
 
 # ── 6. カラーピッカー (即時反映・同期型) ────────────────────────
+@st.fragment
 def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
-    """丸ボタンをクリックすると下のピッカー色も即座に変わるUI"""
+    """
+    st.fragment を使うことで、色を選んでもダイアログが閉じなくなります。
+    """
     val_key = f"{key_prefix}_color_val"
     
     if val_key not in st.session_state:
@@ -86,27 +89,28 @@ def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
     cols = st.columns(len(swatches))
     for i, sw in enumerate(swatches):
         with cols[i]:
-            # 選択中の色を強調
             is_selected = st.session_state[val_key].upper() == sw.upper()
-            border = "3px solid white" if is_selected else "1px solid #555"
-            
+            border = "2px solid white" if is_selected else "1px solid #555"
             st.markdown(
-                f'<div style="background:{sw}; width:18px; height:18px; '
-                f'border-radius:50%; border:{border}; margin:auto;"></div>',
+                f'<div style="background:{sw}; width:18px; height:18px; border-radius:50%; border:{border}; margin:auto;"></div>',
                 unsafe_allow_html=True
             )
-            
-            # ボタンクリックで状態を更新して再描画
-            if st.button("選", key=f"{key_prefix}_sw_{i}", use_container_width=True):
+            # ボタンクリックでセッション更新
+            if st.button(" ", key=f"{key_prefix}_sw_{i}", use_container_width=True):
                 st.session_state[val_key] = sw
-                st.rerun()
+                st.rerun(scope="fragment") # このエリアだけを更新する
 
-    # 下のピッカーと連動
+    # カスタムピッカーもセッションと同期
     chosen = st.color_picker(
-        "カスタム色調整 (選択中)", 
+        "カスタム色調整", 
         value=st.session_state[val_key], 
-        key=f"{key_prefix}_cp_widget"
+        key=f"{key_prefix}_cp_raw"
     )
+    
+    if chosen != st.session_state[val_key]:
+        st.session_state[val_key] = chosen
+
+    return st.session_state[val_key]
     
     # ピッカーを直接操作した際も状態を同期
     if chosen != st.session_state[val_key]:
