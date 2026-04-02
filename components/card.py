@@ -57,10 +57,7 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
             with st.popover("⋮"):
                 if st.button("📝 編集", key=f"btn_edit_{task_id}_{col_idx}", use_container_width=True):
                     task_dialog(task)
-                if st.button("🗑️ 削除", key=f"btn_del_{task_id}_{col_idx}", use_container_width=True):
-                    from db.tasks import delete_task
-                    delete_task(task_id)
-                    st.rerun()
+               
 
         # アコーディオン（トップに期限）
         exp_label = f"⏳ 期限: {deadline_val if deadline_val else '未設定'}"
