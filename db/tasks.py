@@ -9,6 +9,12 @@ def load_tasks() -> list[dict]:
 
 
 def create_task(data: dict):
+    # NULL制約エラーを防ぐためのクリーニング
+    clean_data = {
+        k: (v if v is not None else "") for k, v in data.items()
+    }
+    return supabase.table("tasks").insert(clean_data).execute()
+    
     get_supabase().table("tasks").insert({
         "id":         str(uuid.uuid4()),
         "created_at": datetime.utcnow().isoformat(),
