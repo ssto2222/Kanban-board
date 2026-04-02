@@ -43,7 +43,8 @@ def get_priority_color(deadline_str: str, original_color: str, column: str = "to
     except:
         return original_color
 
-def dt_input(label: str, value: str = "", key_prefix: str = "") -> str:
+def dt_input(label: str, value: str = "", key_prefix: str = "",disabled=False) -> str:
+    # 内部の st.text_input や st.date_input に disabled=disabled を渡す
     """日付と時刻の入力。時刻リストを07:00から開始する。"""
     default_dt = parse_dt(value) or datetime.now(JST)
     
