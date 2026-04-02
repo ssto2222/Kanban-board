@@ -43,11 +43,7 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
             with st.popover("⋮", help="メニュー"):
                 if st.button("📝 編集", key=f"btn_edit_{task_id}_{col_idx}", use_container_width=True):
                     task_dialog(task)
-                
-                if st.button("🗑️ 削除", key=f"btn_del_{task_id}_{col_idx}", use_container_width=True):
-                    from db.tasks import delete_task
-                    delete_task(task_id)
-                    st.rerun()
+     
 
         # ── 4. 折りたたみ詳細部分（Expander） ──
         # ラベルに期限を表示（プレーンテキストで表示）
