@@ -4,12 +4,13 @@ from supabase import create_client
 
 @st.cache_resource
 def get_supabase():
-    # 1. まずStreamlitのSecretsを確認し、なければ環境変数を探す
-    url = st.secrets.get("SUPABASE_URL") or os.environ.get("SUPABASE_URL")
-    key = st.secrets.get("SUPABASE_KEY") or os.environ.get("SUPABASE_KEY")
+    # 1. まず os.environ (Heroku) を確認
+    # 2. なければ st.secrets (ローカル/Streamlit Cloud) を確認
+    url = os.environ.get("SUPABASE_URL") or st.secrets.get("SUPABASE_URL")
+    key = os.environ.get("SUPABASE_KEY") or st.secrets.get("SUPABASE_KEY")
 
     if not url or not key:
-        st.error("Supabaseの認証情報が見つかりません。")
+        st.error("Supabaseの認証情報が見つかりません。HerokuのConfig Varsまたはsecrets.tomlを確認してください。")
         st.stop()
 
     return create_client(url, key)
