@@ -31,22 +31,25 @@ def _get_wd(dt: datetime) -> str:
     return ["月", "火", "水", "木", "金", "土", "日"][dt.weekday()]
 
 def render_timeline(tasks: list[dict]) -> None:
-    st.markdown("## 📅 タイムライン")
+    st.markdown("## 📅 タイムライン (未完了のみ)")
     st.markdown(_CSS, unsafe_allow_html=True)
 
     today = datetime.now(JST).replace(hour=0, minute=0, second=0, microsecond=0)
     ctrl_l, ctrl_r = st.columns(2)
-    with ctrl_l: group_by = st.radio("グループ分け", ["担当者", "ステータス"], horizontal=True, key="tl_grp")
-    with ctrl_r: view_mode = st.select_slider("表示スパン", options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)"], key="tl_scale")
+    with ctrl_l: 
+        group_by = st.radio("グループ分け", ["担当者", "ステータス"], horizontal=True, key="tl_grp")
+    with ctrl_r: 
+        view_mode = st.select_slider("表示スパン", options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)"], key="tl_scale")
 
     st.divider()
 
-    # 1. データ加工
+    # 1. データ加工 (フィルタリング適用)
     processed_rows = []
     for t in tasks:
-        # 🌟 追加：ステータスが "done" の場合はスキップする
+        # 🌟 ステータスが完了(done)のタスクはタイムラインに表示しない
         if t.get("column") == "done":
             continue
+
         s = parse_dt(t.get("started_at"))
         e = parse_dt(t.get("finished_at"))
         deadline_str = t.get("deadline", "")
@@ -62,7 +65,7 @@ def render_timeline(tasks: list[dict]) -> None:
 
         if s and not e: e = s + timedelta(hours=23)
 
-        # 🌟 色決定ロジック (完了=ターコイズ / 期限切れ=赤 / 期限間近=橙)
+        # 未完了タスクの色判定 (期限切れ=赤 / 期限間近=橙 / その他=元の色)
         display_color = get_priority_color(deadline_str, t.get("color", "#FFD166"), column=status)
 
         if s and e and s < e:
@@ -75,7 +78,7 @@ def render_timeline(tasks: list[dict]) -> None:
             })
 
     if not processed_rows:
-        st.info("表示可能なタスクがありません。")
+        st.info("表示可能な未完了タスクはありません。")
         return
 
     # 2. 範囲計算
@@ -98,7 +101,7 @@ def render_timeline(tasks: list[dict]) -> None:
             ticks.append((p, label, curr.weekday()))
         curr += interval
 
-    # 4. HTML構築
+    # 4. HTML構築 (段組みロジック含む)
     h = ['<div class="tl-wrap">']
     h.append('<div class="tl-axis-row"><div class="tl-group-col"></div><div class="tl-chart-col">')
     for p, label, wd in ticks:
@@ -106,7 +109,6 @@ def render_timeline(tasks: list[dict]) -> None:
         h.append(f'<div class="tl-tick {cls}" style="left:{p:.2f}%">{label}</div>')
     h.append('</div></div>')
 
-    # 段組みロジック適用
     group_map = {}
     for r in processed_rows: group_map.setdefault(r["group"], []).append(r)
     
