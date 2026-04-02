@@ -1,11 +1,10 @@
 from __future__ import annotations
-
+import os
 import html as html_mod
-from datetime import datetime, date, timedelta
-
+from datetime import datetime, timedelta
 import streamlit as st
-
 from config import COL_META
+from utils.helpers import get_priority_color  # 期限色判定をインポート
 
 
 # ── 定数 ─────────────────────────────────────────────────────────────────────
@@ -210,27 +209,41 @@ _CSS = """
 </style>
 """
 
+def _parse_dt(s: str) -> datetime | None:
+    if not s or s == "None" or s == "": return None
+    # 各種フォーマットに対応
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d", "%Y-%m-%dT%H:%M:%S", "%Y-%m-%dT%H:%M:%S.%f"):
+        try:
+            clean_s = s.replace("T", " ")[:16]
+            if len(clean_s) > 10:
+                return datetime.strptime(clean_s, "%Y-%m-%d %H:%M")
+            else:
+                return datetime.strptime(clean_s, "%Y-%m-%d")
+        except:
+            continue
+    return None
 
-# ── パブリック ────────────────────────────────────────────────────────────────
+def _get_group_label(task: dict, group_by: str) -> str:
+    if group_by == "担当者":
+        return task.get("assignee") or "未割り当て"
+    col_key = task.get("column", "todo")
+    return COL_META.get(col_key, {}).get("label", col_key)
 
+# ── メイン描画関数 ────────────────────────────────────────────────────────────
 def render_timeline(tasks: list[dict]) -> None:
     st.markdown("## 📅 タイムライン")
     st.markdown(_CSS, unsafe_allow_html=True)
 
     ctrl_l, ctrl_r = st.columns(2)
     with ctrl_l:
-        mode = st.radio(
-            "表示モード",
-            ["📊 ガントチャート", "🔷 マイルストーン"],
-            horizontal=True,
-            key="tl_mode",
-        )
+        group_by = st.radio("グループ分け", ["担当者", "ステータス"], horizontal=True, key="tl_grp")
+    
     with ctrl_r:
-        group_by = st.radio(
-            "グループ",
-            ["担当者", "ステータス"],
-            horizontal=True,
-            key="tl_group",
+        view_mode = st.select_slider(
+            "表示スパン",
+            options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)"],
+            value="日次 (2週間)",
+            key="tl_scale"
         )
 
     st.divider()

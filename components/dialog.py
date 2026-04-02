@@ -5,10 +5,8 @@ from config import COL_KEYS, COL_META
 from db.tasks import create_task, update_task, delete_task
 from utils.helpers import dt_input, color_picker_with_swatches
 
-
-@st.dialog("タスク", width="small")
+@st.dialog("タスク詳細", width="small")
 def task_dialog(task: dict | None = None) -> None:
-    """タスク作成・編集・削除ダイアログ。"""
     is_edit = task is not None
     task_id = task["id"] if is_edit else "new"
 
@@ -52,45 +50,53 @@ def task_dialog(task: dict | None = None) -> None:
             pass
     deadline = st.date_input("期限", value=dl_val, format="YYYY-MM-DD")
 
-    note = st.text_input("メモ", value=task.get("note", "") if is_edit else "")
+    # 入力項目
+    title = st.text_input("タスク名 *", value=task["title"] if is_edit else "", key="dlg_title")
+    assignee = st.text_input("担当者", value=task["assignee"] if is_edit else "", key="dlg_asg")
+    
+    # 期間設定
+    started_at = dt_input("開始", value=task.get("started_at", "") if is_edit else "", key_prefix="ds")
+    finished_at = dt_input("終了", value=task.get("finished_at", "") if is_edit else "", key_prefix="de")
 
     st.divider()
-    started_at  = dt_input("開始日時を設定", task.get("started_at",  "") if is_edit else "", key_prefix="dlg")
-    finished_at = dt_input("終了日時を設定", task.get("finished_at", "") if is_edit else "", key_prefix="dlg")
+
+    # カラー選択
+    # color_picker_with_swatches 内の fragment により、ダイアログを維持したまま色同期が可能
+    color_picker_with_swatches("dlg_clr", default_color=st.session_state["dlg_clr_color_val"])
+
     st.divider()
 
-    color = color_picker_with_swatches("dlg")
-
-    # ── ボタン行 ────────────────────────────────────────────────────────
-    st.write("")
-    c_cancel, c_save = st.columns(2)
-
-    with c_cancel:
-        if st.button("キャンセル", use_container_width=True):
+    # 保存・キャンセル
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("キャンセル", use_container_width=True, key="dlg_cancel"):
             st.rerun()
 
-    with c_save:
-        if st.button("保存", type="primary", use_container_width=True):
+    with c2:
+        if st.button("保存する", type="primary", use_container_width=True, key="dlg_save"):
             if not title.strip():
                 st.error("タスク名を入力してください")
-                st.stop()
-            payload = {
-                "title":       title.strip(),
-                "assignee":    assignee.strip(),
-                "deadline":    deadline.strftime("%Y-%m-%d") if deadline else "",
-                "color":       color,
-                "note":        note.strip(),
-                "started_at":  started_at,
-                "finished_at": finished_at,
-            }
-            if is_edit:
-                update_task(task["id"], payload)
             else:
-                create_task({**payload, "column": "todo"})
-            st.rerun()
+                # 最新の色は常にセッションから取得する
+                final_color = st.session_state.get("dlg_clr_color_val", "#FFD166")
+                
+                payload = {
+                    "title": title.strip(),
+                    "assignee": assignee.strip(),
+                    "color": final_color,
+                    "started_at": started_at,
+                    "finished_at": finished_at
+                }
+                if is_edit:
+                    update_task(task["id"], payload)
+                else:
+                    create_task({**payload, "column": "todo"})
+                
+                st.session_state._active_dlg_id = None
+                st.rerun()
 
     if is_edit:
-        st.divider()
-        if st.button("🗑 このタスクを削除", use_container_width=True):
-            delete_task(task["id"])
-            st.rerun()
+        with st.expander("危険な操作"):
+            if st.button("🗑 このタスクを完全に削除", use_container_width=True, key="dlg_del"):
+                delete_task(task["id"])
+                st.rerun()

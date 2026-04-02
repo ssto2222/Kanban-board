@@ -1,114 +1,115 @@
-import html as html_mod
 import streamlit as st
-from datetime import date, datetime, time
+import html as html_mod
+from datetime import datetime, date, timedelta, timezone
 
-from config import STICKY_COLORS
+# ── 日本時間 (JST) ──
+JST = timezone(timedelta(hours=9))
 
+def parse_dt(s: str) -> datetime | None:
+    if not s or s == "None" or s == "": return None
+    clean_s = str(s).replace("T", " ").replace("Z", "")[:16]
+    for fmt in ("%Y-%m-%d %H:%M", "%Y-%m-%d"):
+        try:
+            dt = datetime.strptime(clean_s, fmt)
+            return dt.replace(tzinfo=JST)
+        except: continue
+    return None
 
-# ── 色操作 ────────────────────────────────────────────────────────────────────
-
-def darken(hex_color: str, factor: float = 0.2) -> str:
-    h = hex_color.lstrip("#")
-    r, g, b = [int(h[i:i+2], 16) for i in (0, 2, 4)]
-    return "#{:02x}{:02x}{:02x}".format(
-        int(r * (1 - factor)), int(g * (1 - factor)), int(b * (1 - factor))
-    )
-
-
-# ── 期限表示 ──────────────────────────────────────────────────────────────────
-
-def deadline_html(dl: str) -> str:
-    if not dl:
-        return ""
+def darken(hex_color: str, amount: float = 0.2) -> str:
+    hex_color = str(hex_color).lstrip('#')
+    if len(hex_color) == 3: hex_color = ''.join([c*2 for c in hex_color])
     try:
-        days = (datetime.strptime(dl, "%Y-%m-%d").date() - date.today()).days
-    except Exception:
-        return f"<div>📅 {html_mod.escape(dl)}</div>"
-    if days < 0:
-        cls, note = "dl-overdue", f"(期限切れ {abs(days)}日)"
-    elif days == 0:
-        cls, note = "dl-warn", "(本日期限!)"
-    elif days <= 3:
-        cls, note = "dl-warn", f"(残り{days}日)"
-    else:
-        cls, note = "dl-ok", f"(残り{days}日)"
-    return f'<div class="{cls}">📅 {html_mod.escape(dl)}&nbsp;{note}</div>'
+        rgb = tuple(int(hex_color[i:i+2], 16) for i in (0, 2, 4))
+        new_rgb = tuple(max(0, int(c * (1 - amount))) for c in rgb)
+        return '#{:02x}{:02x}{:02x}'.format(*new_rgb)
+    except: return "#444444"
 
-
-# ── 日時入力 ──────────────────────────────────────────────────────────────────
-
-def parse_dt(dt_str: str) -> tuple[date | None, time | None]:
-    """'YYYY-MM-DD HH:MM' → (date, time)。空文字なら (None, None)。"""
-    if not dt_str:
-        return None, None
+def deadline_html(deadline_str: str) -> str:
+    if not deadline_str or deadline_str == "None": return ""
     try:
-        dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M")
-        return dt.date(), dt.time()
-    except Exception:
-        return None, None
+        dt = datetime.strptime(str(deadline_str), "%Y-%m-%d").date()
+        today = datetime.now(JST).date()
+        diff = (dt - today).days
+        cls = "dl-overdue" if diff < 0 else "dl-warn" if diff <= 2 else "dl-ok"
+        return f'<span class="{cls}">⌛ {deadline_str}</span>'
+    except: return f'<span>{deadline_str}</span>'
 
+def dt_input(label: str, value: str = "", key_prefix: str = "") -> str:
+    default_dt = parse_dt(value) or datetime.now(JST)
+    col1, col2 = st.columns(2)
+    with col1:
+        d = st.date_input(f"{label}日", value=default_dt.date(), key=f"{key_prefix}_d")
+    with col2:
+        t = st.time_input(f"{label}時", value=default_dt.time(), key=f"{key_prefix}_t")
+    return f"{d} {t.strftime('%H:%M')}" if d and t else ""
 
-def dt_input(label: str, existing: str, key_prefix: str = "") -> str:
-    """
-    チェックボックス + 日付/時刻ピッカー。
-    'YYYY-MM-DD HH:MM' または '' を返す。
-    key_prefix でウィジェットキーを名前空間化。
-    """
-    d, t = parse_dt(existing)
-    kp = f"{key_prefix}_" if key_prefix else ""
-    safe = label.replace(" ", "").replace("/", "")
+# ── 色設定 (fragment & 強制同期版) ──
+@st.fragment
+def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
+    val_key = f"{key_prefix}_color_val"
+    
+    if val_key not in st.session_state:
+        st.session_state[val_key] = default_color
 
-    enabled = st.checkbox(label, value=bool(d), key=f"{kp}{safe}_chk")
-    if enabled:
-        c1, c2 = st.columns(2)
-        picked_date = c1.date_input(
-            "日付", value=d or date.today(), format="YYYY-MM-DD",
-            label_visibility="collapsed", key=f"{kp}{safe}_date",
-        )
-        picked_time = c2.time_input(
-            "時刻", value=t or time(9, 0),
-            label_visibility="collapsed", key=f"{kp}{safe}_time",
-        )
-        return f"{picked_date} {picked_time.strftime('%H:%M')}"
-    return ""
-
-
-# ── カラーピッカー + スウォッチ ───────────────────────────────────────────────
-
-def color_picker_with_swatches(prefix: str, default: str = "#FFD166") -> str:
-    """
-    カラーピッカーとプリセットスウォッチを描画し、選択色を返す。
-    prefix でセッションステートのキーを名前空間化する。
-
-    仕組み:
-      - スウォッチクリック時に {prefix}_ver をインクリメント
-      - カラーピッカーのキーを {prefix}_cp_{ver} にすることで
-        新しいキーとして扱われ value= が初期値として使われる
-      - widget key でない {prefix}_color には自由に書き込める
-    """
-    ver   = st.session_state.get(f"{prefix}_ver", 0)
-    color = st.color_picker(
-        "付箋の色",
-        value=st.session_state.get(f"{prefix}_color", default),
-        key=f"{prefix}_cp_{ver}",
-    )
-    # 手動操作をステートに反映
-    st.session_state[f"{prefix}_color"] = color
-
-    st.caption("プリセットカラー（クリックで選択）")
-    sw_cols = st.columns(len(STICKY_COLORS))
-    for i, sc in enumerate(STICKY_COLORS):
-        selected = st.session_state.get(f"{prefix}_color", default).upper() == sc.upper()
-        with sw_cols[i]:
-            border = "outline:2px solid #fff;outline-offset:1px;" if selected else ""
+    st.caption("プリセットから選択")
+    swatches = ["#FFD166", # 黄 (標準/待機)
+        "#FF4B4B", # 赤 (緊急/停止)
+        "#FF9F1C", # 橙 (警告/注意)
+        "#00D2D3", # ターコイズ (進行中)
+        "#1DD1A1", # 緑 (完了/正常)
+        "#54a0ff", # 青 (担当者A)
+        "#5f27cd"  # 紫 (重要/担当者B)
+    ]
+    
+    cols = st.columns(len(swatches))
+    for i, sw in enumerate(swatches):
+        with cols[i]:
+            is_selected = st.session_state[val_key].upper() == sw.upper()
+            border = "2px solid white" if is_selected else "1px solid #555"
             st.markdown(
-                f'<div style="background:{sc};height:20px;border-radius:4px;'
-                f'{border}margin-bottom:2px"></div>',
-                unsafe_allow_html=True,
+                f'<div style="background:{sw}; width:18px; height:18px; border-radius:50%; border:{border}; margin:auto;"></div>',
+                unsafe_allow_html=True
             )
-            if st.button("✓" if selected else " ", key=f"{prefix}_sw_{i}",
-                         use_container_width=True, help=sc):
-                st.session_state[f"{prefix}_color"] = sc
-                st.session_state[f"{prefix}_ver"]   = ver + 1
+            # ボタンクリックで色を更新し、このエリアだけ再描画
+            if st.button(" ", key=f"{key_prefix}_sw_{i}", use_container_width=True):
+                st.session_state[val_key] = sw
+                st.rerun(scope="fragment")
 
-    return st.session_state.get(f"{prefix}_color", default)
+    # 🌟 重要：keyに現在の色を含めることで、ピッカーの色を強制的に更新させる
+    current_color = st.session_state[val_key]
+    chosen = st.color_picker(
+        f"カスタム色調整: {current_color}", 
+        value=current_color, 
+        key=f"{key_prefix}_cp_{current_color}" 
+    )
+    
+    if chosen != st.session_state[val_key]:
+        st.session_state[val_key] = chosen
+        # ピッカーを直接いじった時も、他のウィジェットを壊さない程度に更新
+        st.rerun(scope="fragment")
+
+    return st.session_state[val_key]
+def get_priority_color(deadline_str: str, original_color: str) -> str:
+    """
+    期限に応じて色を上書きする。
+    - 期限切れ: 赤 (#FF4B4B)
+    - 2日以内: 橙 (#FF9F1C)
+    - それ以外: 元の色
+    """
+    if not deadline_str or deadline_str == "None":
+        return original_color
+    
+    try:
+        # deadline_str は "2026-04-02" 形式と想定
+        dt = datetime.strptime(str(deadline_str), "%Y-%m-%d").date()
+        today = datetime.now(JST).date()
+        diff = (dt - today).days
+
+        if diff < 0:
+            return "#FF4B4B"  # 自動的に赤（期限切れ）
+        elif diff <= 2:
+            return "#FF9F1C"  # 自動的に橙（期限間近）
+        else:
+            return original_color # 通常
+    except:
+        return original_color

@@ -1,11 +1,11 @@
 import streamlit as st
+import os
 
 from config import NAV_PAGES, COMING_SOON
 from db.tasks import load_tasks
 from views import render_kanban, render_assignee, render_new_task, render_timeline
 
 # ── ページ設定 ────────────────────────────────────────────────────────────────
-
 st.set_page_config(
     page_title="StickyKanban",
     page_icon="🗒",
@@ -14,32 +14,23 @@ st.set_page_config(
 )
 
 # ── グローバルCSS ─────────────────────────────────────────────────────────────
-
 st.markdown("""
 <style>
-/* ── 背景 ── */
+/* 背景・サイドバーの基本デザイン */
 [data-testid="stAppViewContainer"] { background: #1a1a2e; }
 [data-testid="stHeader"]           { background: transparent; }
-
-/* ── サイドバー ── */
 [data-testid="stSidebar"] {
     background: #16213e;
     border-right: 1px solid #2a2a4a;
 }
 
-/* ── カンバン列ヘッダー ── */
+/* カンバン・カードのデザイン */
 .col-hdr {
     border-radius: 8px; padding: 10px 14px;
     color: #fff; font-weight: 700; font-size: 14px;
     margin-bottom: 8px;
     display: flex; justify-content: space-between; align-items: center;
 }
-.badge {
-    background: rgba(255,255,255,.2);
-    border-radius: 12px; padding: 2px 9px; font-size: 12px;
-}
-
-/* ── 付箋カード ── */
 .kcard {
     border-radius: 10px 10px 0 0;
     box-shadow: 2px 2px 6px rgba(0,0,0,.45);
@@ -77,30 +68,19 @@ div[data-testid="stButton"][data-key^="e_"] > button:hover {
 
 /* ── 担当者別ビュー ── */
 .assignee-hdr {
-    background: #16213e;
-    border-left: 4px solid #e94560;
-    border-radius: 0 8px 8px 0;
-    padding: 10px 16px; margin-bottom: 10px;
+    background: #16213e; border-left: 4px solid #e94560;
+    border-radius: 0 8px 8px 0; padding: 10px 16px; margin-bottom: 10px;
     font-weight: 700; font-size: 15px; color: #eaeaea;
-}
-.assignee-hdr .sub {
-    color: #9a9ab0; font-size: 12px; font-weight: 400; margin-left: 8px;
-}
-.status-label { font-size: 11px; color: #9a9ab0; margin-bottom: 6px; }
-.status-pill {
-    display: inline-block; border-radius: 10px; padding: 1px 7px;
-    font-size: 10px; font-weight: 700; color: #fff; margin-bottom: 3px;
 }
 </style>
 """, unsafe_allow_html=True)
 
 # ── セッション初期化 ──────────────────────────────────────────────────────────
-
+# 担当者別 (assignee) を初期ページに設定
 if "page" not in st.session_state:
-    st.session_state.page = "kanban"
+    st.session_state.page = "assignee"
 
 # ── サイドバー ────────────────────────────────────────────────────────────────
-
 with st.sidebar:
     st.markdown("## 🗒 StickyKanban")
     st.divider()
@@ -114,7 +94,7 @@ with st.sidebar:
             use_container_width=True,
             type="primary" if is_active else "secondary",
         ):
-            # 新規タスクページから離れるときフォーム状態をリセット
+            # ページ遷移時に新規タスクのフォーム状態をリセット
             if st.session_state.page == "new_task" and key != "new_task":
                 for k in list(st.session_state.keys()):
                     if k.startswith("nt_"):
@@ -125,45 +105,35 @@ with st.sidebar:
     st.divider()
     st.caption("今後追加予定")
     for item in COMING_SOON:
-        st.markdown(
-            f'<div style="color:#9a9ab0;padding:3px 0;font-size:13px">{item}</div>',
-            unsafe_allow_html=True,
-        )
+        st.markdown(f'<div style="color:#9a9ab0;padding:3px 0;font-size:13px">{item}</div>', unsafe_allow_html=True)
 
     st.divider()
     st.caption("v1.0.0")
 
 # ── メインコンテンツ ──────────────────────────────────────────────────────────
-
 page = st.session_state.page
 
-# カンバン / 担当者別 / タイムライン はデータ読み込みが必要
 if page in ("kanban", "assignee", "timeline"):
     try:
         tasks = load_tasks()
     except Exception as e:
         st.error("Supabase への接続に失敗しました。")
-        st.code(str(e))
-        st.info("`.streamlit/secrets.toml` に `SUPABASE_URL` と `SUPABASE_KEY` を設定してください。")
+        st.info("Herokuの環境変数または secrets.toml を確認してください。")
         st.stop()
 
     if page == "timeline":
         render_timeline(tasks)
     else:
-        # 検索バー（カンバン・担当者別のみ）
-        search = st.text_input(
-            "search", placeholder="🔍  タスク・担当者を検索...",
-            label_visibility="collapsed",
-        )
+        # 検索バー
+        search = st.text_input("search", placeholder="🔍 タスク・担当者を検索...", label_visibility="collapsed")
         if search:
             q = search.lower()
-            tasks = [t for t in tasks
-                     if q in t["title"].lower() or q in t.get("assignee", "").lower()]
+            tasks = [t for t in tasks if q in t["title"].lower() or q in (t.get("assignee") or "").lower()]
 
-        if page == "kanban":
-            render_kanban(tasks)
-        else:
+        if page == "assignee":
             render_assignee(tasks)
+        else:
+            render_kanban(tasks)
 
 elif page == "new_task":
     render_new_task()
