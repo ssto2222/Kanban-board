@@ -2,7 +2,7 @@ import streamlit as st
 from datetime import date
 
 from config import COLUMNS, COL_KEYS
-from db.tasks import create_task
+from db.tasks import create_task, load_tasks  # load_tasksを追加
 from utils.helpers import dt_input, color_picker_with_swatches
 
 
@@ -12,9 +12,38 @@ def render_new_task() -> None:
 
     fv = st.session_state.get("nt_form_ver", 0)  # フォームリセット用バージョン
 
+    # ── 担当者リストの取得 ──────────────────────────────────────────────
+    # 既存のタスクからユニークな担当者名を取得
+    try:
+        all_tasks = load_tasks()
+        # Noneを除外し、重複を消してソート
+        existing_assignees = sorted(list(set(
+            t.get("assignee") for t in all_tasks if t.get("assignee")
+        )))
+    except:
+        existing_assignees = []
+
     # ── 基本情報 ────────────────────────────────────────────────────────
-    title    = st.text_input("タスク名 *", key=f"nt_title_{fv}")
-    assignee = st.text_input("担当者",     key=f"nt_assignee_{fv}")
+    title = st.text_input("タスク名 *", key=f"nt_title_{fv}")
+
+    # 担当者入力の改善: 既存リストから選択 or 新規入力
+    st.write("担当者")
+    c1, c2 = st.columns([0.4, 0.6])
+    with c1:
+        selected_assignee = st.selectbox(
+            "既存から選択",
+            options=["(新規入力)"] + existing_assignees,
+            key=f"nt_assignee_sel_{fv}"
+        )
+    with c2:
+        # 選択肢が「新規入力」の時だけ入力可能にする、または上書き入力用
+        default_val = "" if selected_assignee == "(新規入力)" else selected_assignee
+        assignee = st.text_input(
+            "担当者名を入力", 
+            value=default_val,
+            key=f"nt_assignee_text_{fv}",
+            placeholder="新しい名前を入力..."
+        )
 
     col_left, col_right = st.columns(2)
     with col_left:
@@ -34,8 +63,8 @@ def render_new_task() -> None:
 
     # ── 日時 ────────────────────────────────────────────────────────────
     st.divider()
-    started_at  = dt_input("開始日時を設定", "", key_prefix=f"nt_{fv}")
-    finished_at = dt_input("終了日時を設定", "", key_prefix=f"nt_{fv}")
+    started_at  = dt_input("開始日時を設定", "", key_prefix=f"nt_{fv}_s")
+    finished_at = dt_input("終了日時を設定", "", key_prefix=f"nt_{fv}_f")
     st.divider()
 
     # ── カラー ──────────────────────────────────────────────────────────
@@ -51,7 +80,7 @@ def render_new_task() -> None:
 
         create_task({
             "title":       title.strip(),
-            "assignee":    assignee.strip(),
+            "assignee":    assignee.strip(), # c2のテキスト入力値を優先使用
             "deadline":    deadline.strftime("%Y-%m-%d") if deadline else "",
             "column":      status,
             "note":        note.strip(),
@@ -63,13 +92,15 @@ def render_new_task() -> None:
         # フォームをリセットしてカンバンへ遷移
         _reset_form_state(fv)
         st.session_state["_toast"] = f"「{title.strip()}」を追加しました"
-        st.session_state.page = "kanban"
+        # 遷移先を「担当者別」にする場合はここを "assignee" に変更
+        st.session_state.page = "assignee" 
         st.rerun()
 
 
 def _reset_form_state(current_ver: int) -> None:
     """nt_ プレフィックスのセッションステートをすべて削除してフォームをリセット。"""
     st.session_state["nt_form_ver"] = current_ver + 1
+    # 関連するすべてのキーを削除
     for k in list(st.session_state.keys()):
-        if k.startswith(f"nt_{current_ver}") or k.startswith("nt_form"):
+        if k.startswith("nt_"):
             st.session_state.pop(k, None)
