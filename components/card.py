@@ -57,9 +57,6 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
             # 開いた時に最初に見える情報（担当者とカラー期限バッジ）
             st.markdown(f"**👤 担当者:** {html_mod.escape(assignee)}")
             
-            dl_html = deadline_html(deadline_val)
-            if dl_html:
-                st.markdown(f"**⏳ 状態:** {dl_html}", unsafe_allow_html=True)
 
             # ステータス表示（担当者別ビューなどの場合）
             if show_status:
