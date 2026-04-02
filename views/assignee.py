@@ -1,5 +1,4 @@
 import streamlit as st
-importimport streamlit as st
 import html
 from config import COLUMNS
 from components.card import render_card
