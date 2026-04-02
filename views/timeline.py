@@ -45,7 +45,7 @@ def render_timeline(tasks: list[dict]) -> None:
         view_mode = st.select_slider(
             "表示スパン", 
             options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)", "年次 (12ヶ月)"], 
-            value="月次 (6ヶ月)",
+            value="日次 (2週間)",
             key="tl_scale"
         )
 
