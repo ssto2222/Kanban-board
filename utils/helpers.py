@@ -18,12 +18,12 @@ def parse_dt(s: str) -> datetime | None:
 def get_priority_color(deadline_str: str, original_color: str, column: str = "todo") -> str:
     """
     タスクの色を決定する。
-    1. 完了(done)ステータスなら無条件でターコイズ
+    1. 完了(done)ステータスなら無条件でグレイ
     2. 未完了なら期限に応じて 赤(切) > 橙(間近) > 元の色
     """
-    # 完了ステータスの場合はターコイズ
+    # 完了ステータスの場合はグレイ
     if column == "done":
-        return "#00D2D3" 
+        return "#4a4a6a" 
 
     # 期限設定がない場合は元の色
     if not deadline_str or deadline_str == "None":
