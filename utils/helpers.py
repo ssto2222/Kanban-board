@@ -15,17 +15,33 @@ def parse_dt(s: str) -> datetime | None:
         except: continue
     return None
 
-def get_priority_color(deadline_str: str, original_color: str) -> str:
-    """期限に応じて色を自動決定する"""
-    if not deadline_str or deadline_str == "None": return original_color
+def get_priority_color(deadline_str: str, original_color: str, column: str = "todo") -> str:
+    """
+    タスクの色を決定する。
+    1. 完了(done)ステータスなら無条件でターコイズ
+    2. 未完了なら期限に応じて 赤(切) > 橙(間近) > 元の色
+    """
+    # 完了ステータスの場合はターコイズ
+    if column == "done":
+        return "#00D2D3" 
+
+    # 期限設定がない場合は元の色
+    if not deadline_str or deadline_str == "None":
+        return original_color
+
     try:
         dt = datetime.strptime(str(deadline_str), "%Y-%m-%d").date()
         today = datetime.now(JST).date()
         diff = (dt - today).days
-        if diff < 0: return "#FF4B4B"  # 期限切れ：赤
-        if diff <= 2: return "#FF9F1C" # 期限間近：橙
+
+        if diff < 0:
+            return "#FF4B4B"  # 期限切れ：赤
+        if diff <= 2:
+            return "#FF9F1C"  # 期限間近：橙
+        
         return original_color
-    except: return original_color
+    except:
+        return original_color
 
 def dt_input(label: str, value: str = "", key_prefix: str = "") -> str:
     """日付と時刻の入力。時刻リストを07:00から開始する。"""
