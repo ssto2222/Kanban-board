@@ -34,8 +34,18 @@ def task_dialog(task: dict | None = None) -> None:
     note = st.text_input("メモ", value=task.get("note", "") if is_edit else "")
 
     st.divider()
-    started_at  = dt_input("開始日時を設定", task.get("started_at",  "") if is_edit else "", key_prefix="dlg")
-    finished_at = dt_input("終了日時を設定", task.get("finished_at", "") if is_edit else "", key_prefix="dlg")
+    # プレフィックスをユニークにする（例: dlg_s と dlg_e）
+    started_at = dt_input(
+        "開始日時を設定", 
+        task.get("started_at", "") if is_edit else "", 
+        key_prefix="dlg_s"
+    )
+    
+    finished_at = dt_input(
+        "終了日時を設定", 
+        task.get("finished_at", "") if is_edit else "", 
+        key_prefix="dlg_e"
+    )
     st.divider()
 
     color = color_picker_with_swatches("dlg")
