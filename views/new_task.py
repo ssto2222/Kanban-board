@@ -12,7 +12,7 @@ def render_new_task() -> None:
     # フォームのリセット管理用バージョン
     fv = st.session_state.get("nt_form_ver", 0)
 
-    # 既存の担当者リストを取得（重複排除・ソート）
+    # 既存の担当者リストを取得
     try:
         all_tasks = load_tasks()
         existing_assignees = sorted(list(set(
@@ -27,45 +27,40 @@ def render_new_task() -> None:
     is_milestone = st.checkbox(
         "マイルストーンとして登録 (重要な節目・期日)", 
         key=f"nt_is_ms_{fv}",
-        help="チェックすると、期間入力が無効になり、タイムライン上では特定の日の節目として表示されます。"
+        help="チェックすると期間入力が無効になり、当日のみのイベントとして登録されます。"
     )
 
     if is_milestone:
         st.info("🔷 マイルストーンモード: 期限（実施日）を1日選んでください。")
 
-   # ── 2. 担当者入力 (選択 + 直接編集) ──────────────────────────────────
+    # ── 2. 担当者入力 (連動コールバック) ──────────────────────────────────
     st.markdown("##### 👤 担当者設定")
-    c1, c2 = st.columns([0.4, 0.6])
     
+    txt_key = f"nt_as_txt_{fv}"
+    sel_key = f"nt_as_sel_{fv}"
+
+    # コールバック関数: セレクトボックスが変わった瞬間にテキスト欄のStateを直接書き換える
+    def on_assignee_change():
+        chosen = st.session_state[sel_key]
+        if chosen != "(新規入力)":
+            st.session_state[txt_key] = chosen
+
+    c1, c2 = st.columns([0.4, 0.6])
     with c1:
-        # 既存リストから選択
         selected_assignee = st.selectbox(
             "既存から選択", 
             options=["(新規入力)"] + existing_assignees, 
-            key=f"nt_as_sel_{fv}"
+            key=sel_key,
+            on_change=on_assignee_change # ここで連動
         )
-    
     with c2:
-        # 🌟 ロジックのポイント:
-        # セレクトボックスで「新規入力」以外が選ばれた場合、その値を text_input のデフォルトにする。
-        # ただし、ユーザーが右側で書き換えた内容を保持したいため、
-        # 「セッションステートに値がない時」または「セレクトボックスが変更された時」のみ上書きするようにします。
-        
-        txt_key = f"nt_as_txt_{fv}"
-        
-        # セレクトボックスで具体的な名前が選ばれたら、それをテキスト欄の初期値として採用
-        if selected_assignee != "(新規入力)":
-            current_val = selected_assignee
-        else:
-            # 新規入力が選ばれている場合は、現在入力されている値を維持（初回は空）
-            current_val = st.session_state.get(txt_key, "")
-
+        # text_inputの初期値設定はStateに任せ、変数を取得
         assignee = st.text_input(
             "担当者名 (直接編集・追記可)", 
-            value=current_val, 
             key=txt_key,
             placeholder="名前を入力"
         )
+
     # ── 3. 期限とステータス ──────────────────────────────────────────────
     col_left, col_right = st.columns(2)
     with col_left:
@@ -81,18 +76,13 @@ def render_new_task() -> None:
 
     note = st.text_input("メモ・詳細", key=f"nt_note_{fv}", placeholder="備考など")
 
-    # ── 4. 作業期間 (マイルストーン時は無効化) ──────────────────────────
+    # ── 4. 作業期間 (マイルストーン時は説明のみ) ──────────────────────────
     st.divider()
     
-    # マイルストーンなら disabled=True。
-    # さらに、is_milestoneがTrueの間は値を強制的に空文字にする
     if is_milestone:
-        st.caption("ℹ️ マイルストーンは期間を持ちません（期限日が実施日となります）")
+        st.warning("🔷 マイルストーン設定中: 作業期間（開始・終了）は設定できません。")
         started_at = ""
         finished_at = ""
-        # 表示だけグレーアウトさせる
-        dt_input("開始日時", "", key_prefix=f"nt_{fv}_s_dis", disabled=True)
-        dt_input("終了日時", "", key_prefix=f"nt_{fv}_f_dis", disabled=True)
     else:
         st.caption("作業期間を設定する場合（タイムラインにバーで表示されます）")
         started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s")
@@ -100,35 +90,27 @@ def render_new_task() -> None:
 
     st.divider()
     
-    # ── 5. カラー選択と登録ボタン (コンテナで保護) ───────────────────────
-    # カラーピッカーのfragmentによる再描画からボタン消失を守るためのコンテナ
+    # ── 5. カラー選択と登録ボタン ───────────────────────────────────────
     footer_container = st.container()
     
     with footer_container:
-        # デフォルトカラーの切り替え
         default_color = "#E94560" if is_milestone else "#FFD166"
-        
-        # カラーピッカー呼び出し (fragment)
         color_picker_with_swatches(f"nt_{fv}", default_color=default_color)
 
-        st.write("") # 縦の余白
+        st.write("") 
         
-        # 登録ボタン
         if st.button("この内容で登録する", type="primary", use_container_width=True, key=f"nt_submit_btn_{fv}"):
-            # --- バリデーション ---
             if not title.strip():
                 st.error("項目名を入力してください")
                 return
 
-            # 日時の整合性チェック (通常タスクのみ)
+            # バリデーション
             if not is_milestone and finished_at:
                 try:
                     f_dt = datetime.strptime(finished_at, "%Y-%m-%d %H:%M")
-                    # 終了日時が期限日を超えていないか
                     if deadline and f_dt.date() > deadline:
                         st.error(f"❌ 終了日時は期限（{deadline}）以前に設定してください")
                         return
-                    # 開始が終了より前か
                     if started_at:
                         s_dt = datetime.strptime(started_at, "%Y-%m-%d %H:%M")
                         if s_dt > f_dt:
@@ -137,15 +119,13 @@ def render_new_task() -> None:
                 except ValueError:
                     pass
 
-            # --- データの構築 ---
-            # マイルストーンならタイトルとメモに識別子を付与（タイムライン側での判定用）
+            # 登録データの構築
             final_title = f"🔷 {title.strip()}" if is_milestone else title.strip()
+            # タイムライン側でマイルストーンとして扱うためのフラグをnote等に含める（必要に応じて）
             final_note  = f"[MS] {note.strip()}" if is_milestone else note.strip()
             
-            # カラーはセッションステートから取得、なければデフォルト
             color = st.session_state.get(f"nt_{fv}_color_val", default_color)
 
-            # DB登録処理
             try:
                 create_task({
                     "title":       final_title,
@@ -157,19 +137,18 @@ def render_new_task() -> None:
                     "started_at":  started_at,
                     "finished_at": finished_at,
                 })
+                
+                # 成功時のリセット
+                _reset_form_state(fv)
+                st.session_state["_toast"] = f"「{final_title}」を追加しました"
+                st.session_state.page = "kanban"
+                st.rerun()
+
             except RuntimeError as e:
                 st.error(f"登録エラー: {str(e)}")
-                return
-
-            # 状態リセットと画面遷移
-            _reset_form_state(fv)
-            st.session_state["_toast"] = f"「{final_title}」を追加しました"
-            st.session_state.page = "kanban"
-            st.rerun()
 
 
 def _reset_form_state(current_ver: int) -> None:
-    """フォームの各ウィジェットをクリアするためにバージョンを上げ、ステートを削除する"""
     st.session_state["nt_form_ver"] = current_ver + 1
     for k in list(st.session_state.keys()):
         if k.startswith("nt_"):
