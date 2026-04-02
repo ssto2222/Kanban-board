@@ -9,10 +9,11 @@ from utils.helpers import get_priority_color, parse_dt, JST
 _CSS = """
 <style>
 .tl-wrap { background: #1a1a2e; border-radius: 8px; padding: 8px 0; overflow-x: auto; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
-.tl-axis-row { display: flex; align-items: flex-end; height: 40px; border-bottom: 2px solid #444; position: sticky; top: 0; background: #1a1a2e; z-index: 20; }
+.tl-axis-row { display: flex; align-items: flex-end; height: 45px; border-bottom: 2px solid #444; position: sticky; top: 0; background: #1a1a2e; z-index: 20; }
 .tl-group-col { width: 140px; min-width: 140px; flex-shrink: 0; border-right: 1px solid #444; }
-.tl-chart-col { flex: 1; position: relative; height: 40px; min-width: 1000px; }
-.tl-tick { position: absolute; font-size: 10px; color: #9a9ab0; text-align: center; transform: translateX(-50%); line-height: 1.2; padding-bottom: 3px; }
+/* 横軸が窮屈にならないよう min-width を view_mode に合わせる工夫も可能ですが、一律 1000px 以上を確保 */
+.tl-chart-col { flex: 1; position: relative; height: 45px; min-width: 1000px; }
+.tl-tick { position: absolute; font-size: 10px; color: #9a9ab0; text-align: center; transform: translateX(-50%); line-height: 1.2; padding-bottom: 5px; }
 .tl-tick.sat { color: #4ecca3; font-weight: bold; }
 .tl-tick.sun { color: #ff4b2b; font-weight: bold; }
 .tl-row { display: flex; align-items: stretch; border-bottom: 1px solid #2a2a4a; position: relative; }
@@ -35,20 +36,42 @@ def render_timeline(tasks: list[dict]) -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
 
     today = datetime.now(JST).replace(hour=0, minute=0, second=0, microsecond=0)
+    
+    # ── 1. コントロールパネル ─────────────────────
     ctrl_l, ctrl_r = st.columns(2)
     with ctrl_l: 
         group_by = st.radio("グループ分け", ["担当者", "ステータス"], horizontal=True, key="tl_grp")
     with ctrl_r: 
-        view_mode = st.select_slider("表示スパン", options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)"], key="tl_scale")
+        view_mode = st.select_slider(
+            "表示スパン（ピッチ）", 
+            options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)"], 
+            value="週次 (2ヶ月)",
+            key="tl_scale"
+        )
 
-    st.divider()
+    # ── 2. 表示範囲とインターバルの決定 ──────────────────
+    # モードに合わせて、今日を基準とした前後表示日数を計算
+    if "日次" in view_mode:
+        days_back, days_fwd = 3, 11
+        interval = timedelta(days=1)
+    elif "週次" in view_mode:
+        days_back, days_fwd = 14, 46
+        interval = timedelta(days=1) # グリッドは毎日、ラベルを週1にする
+    else: # 月次
+        days_back, days_fwd = 30, 150
+        interval = timedelta(days=2) # 密度を下げて描画負荷を軽減
 
-    # 1. データ加工 (フィルタリング適用)
+    chart_min = today - timedelta(days=days_back)
+    chart_max = today + timedelta(days=days_fwd)
+    total_secs = (chart_max - chart_min).total_seconds()
+
+    def get_pct(dt: datetime) -> float:
+        return (dt - chart_min).total_seconds() / total_secs * 100
+
+    # ── 3. データ加工 ──────────────────────────
     processed_rows = []
     for t in tasks:
-        # 🌟 ステータスが完了(done)のタスクはタイムラインに表示しない
-        if t.get("column") == "done":
-            continue
+        if t.get("column") == "done": continue
 
         s = parse_dt(t.get("started_at"))
         e = parse_dt(t.get("finished_at"))
@@ -65,48 +88,53 @@ def render_timeline(tasks: list[dict]) -> None:
 
         if s and not e: e = s + timedelta(hours=23)
 
-        # 未完了タスクの色判定 (期限切れ=赤 / 期限間近=橙 / その他=元の色)
+        # 範囲外のタスクは除外、またはトリミング
+        if e < chart_min or s > chart_max: continue
+        
         display_color = get_priority_color(deadline_str, t.get("color", "#FFD166"), column=status)
 
         if s and e and s < e:
             processed_rows.append({
                 "title": t.get("title", "無題"),
-                "start": s,
-                "end": e,
+                "start": max(s, chart_min), # 左側トリミング
+                "end": min(e, chart_max),   # 右側トリミング
                 "group": _get_group_label(t, group_by),
                 "color": display_color
             })
 
-    if not processed_rows:
-        st.info("表示可能な未完了タスクはありません。")
-        return
-
-    # 2. 範囲計算
-    all_starts = [r["start"] for r in processed_rows] + [today]
-    all_ends = [r["end"] for r in processed_rows] + [today]
-    chart_min = min(all_starts) - timedelta(days=3)
-    chart_max = max(all_ends) + timedelta(days=7)
-    total_secs = (chart_max - chart_min).total_seconds()
-    def get_pct(dt: datetime) -> float: return (dt - chart_min).total_seconds() / total_secs * 100
-
-    # 3. 目盛り生成
+    # ── 4. 目盛り生成 ──────────────────────────
     ticks = []
     curr = chart_min.replace(hour=0, minute=0, second=0, microsecond=0)
-    interval = timedelta(days=1) if "日次" in view_mode else timedelta(weeks=1) if "週次" in view_mode else timedelta(days=30)
     while curr <= chart_max:
         p = get_pct(curr)
         if 0 <= p <= 100:
             wd = _get_wd(curr)
-            label = f"{curr.strftime('%d')}<br>({wd})" if "日次" in view_mode else curr.strftime("%m/%d")
+            # ラベル表示の条件をモードで切り替え
+            show_label = False
+            if "日次" in view_mode:
+                show_label = True
+                label = f"{curr.strftime('%m/%d')}<br>({wd})"
+            elif "週次" in view_mode:
+                if curr.weekday() == 0: # 月曜日のみラベル表示
+                    show_label = True
+                    label = f"{curr.strftime('%m/%d')}"
+                else: label = ""
+            else: # 月次
+                if curr.day == 1 or curr.day == 15: # 1日と15日のみ
+                    show_label = True
+                    label = f"{curr.strftime('%m/%d')}"
+                else: label = ""
+            
             ticks.append((p, label, curr.weekday()))
         curr += interval
 
-    # 4. HTML構築 (段組みロジック含む)
+    # ── 5. HTML構築 ────────────────────────────
     h = ['<div class="tl-wrap">']
     h.append('<div class="tl-axis-row"><div class="tl-group-col"></div><div class="tl-chart-col">')
     for p, label, wd in ticks:
-        cls = "sat" if wd == 5 else "sun" if wd == 6 else ""
-        h.append(f'<div class="tl-tick {cls}" style="left:{p:.2f}%">{label}</div>')
+        if label:
+            cls = "sat" if wd == 5 else "sun" if wd == 6 else ""
+            h.append(f'<div class="tl-tick {cls}" style="left:{p:.2f}%">{label}</div>')
     h.append('</div></div>')
 
     group_map = {}
@@ -130,13 +158,18 @@ def render_timeline(tasks: list[dict]) -> None:
         h.append(f'<div class="tl-row" style="height:{row_h}px;">')
         h.append(f'<div class="tl-group-name" title="{html_mod.escape(grp)}">{html_mod.escape(grp)}</div>')
         h.append('<div class="tl-chart-area">')
-        for p, _, _ in ticks: h.append(f'<div class="tl-gridline" style="left:{p:.2f}%"></div>')
         
+        # グリッド線
+        for p, _, _ in ticks: 
+            h.append(f'<div class="tl-gridline" style="left:{p:.2f}%"></div>')
+        
+        # 今日のライン
         tp = get_pct(datetime.now(JST))
         if 0 <= tp <= 100: h.append(f'<div class="tl-today-line" style="left:{tp:.2f}%"></div>')
         
+        # タスクバー
         for t, lane_idx in task_layout:
-            left, width = get_pct(t["start"]), max(get_pct(t["end"]) - get_pct(t["start"]), 1.5)
+            left, width = get_pct(t["start"]), max(get_pct(t["end"]) - get_pct(t["start"]), 1.0)
             top = ROW_PADDING + lane_idx * (BAR_HEIGHT + BAR_MARGIN)
             title = html_mod.escape(t["title"])
             h.append(f'<div class="tl-bar-outer" style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;">'
