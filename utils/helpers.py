@@ -58,7 +58,8 @@ def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
         "#00D2D3", # ターコイズ (進行中)
         "#1DD1A1", # 緑 (完了/正常)
         "#54a0ff", # 青 (担当者A)
-        "#5f27cd"  # 紫 (重要/担当者B)]
+        "#5f27cd"  # 紫 (重要/担当者B)
+    ]
     
     cols = st.columns(len(swatches))
     for i, sw in enumerate(swatches):
