@@ -117,8 +117,8 @@ if page in ("kanban", "assignee", "timeline"):
     try:
         tasks = load_tasks()
     except Exception as e:
-        st.error("Supabase への接続に失敗しました。")
-        st.info("Herokuの環境変数または secrets.toml を確認してください。")
+        st.error(str(e))
+        st.info("Herokuの環境変数または `.streamlit/secrets.toml` を確認してください。")
         st.stop()
 
     if page == "timeline":
