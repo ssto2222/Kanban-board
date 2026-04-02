@@ -1,5 +1,6 @@
 import streamlit as st
 from datetime import datetime, date, time, timedelta, timezone
+import html as html_mod
 
 # 日本時間設定
 JST = timezone(timedelta(hours=9))
