@@ -58,9 +58,25 @@ def render_new_task() -> None:
     else:
         st.caption("作業期間を設定する場合（タイムラインにバーで表示されます）")
 
+    st.divider()
+    
+    if is_milestone:
+        # マイルストーン時は入力欄を出さず、説明テキストのみ表示
+        st.warning("🔷 マイルストーン設定：作業期間は設定できません。")
+        # 変数の中身を空にして保存処理に備える
+        started_at = ""
+        finished_at = ""
+    else:
+        # 通常タスク時のみ入力欄を表示
+        st.caption("作業期間を設定する場合（タイムラインに表示されます）")
+        started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s")
+        finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f")
+
+    st.divider()
+    
     # is_milestone が True なら disabled=True になるように設定
-    started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s", disabled=is_milestone)
-    finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f", disabled=is_milestone)
+    #started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s", disabled=is_milestone)
+    #finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f", disabled=is_milestone)
 
     # 🌟 マイルストーン時は強制的に空文字にする（バリデーション用）
     if is_milestone:
