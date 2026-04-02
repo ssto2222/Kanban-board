@@ -7,95 +7,84 @@ from utils.helpers import dt_input, color_picker_with_swatches
 
 
 def render_new_task() -> None:
-    """新規タスク作成ページ（フルページフォーム）。"""
-    st.markdown("## ➕ 新規タスク")
+    st.markdown("## ➕ 新規タスク / 🔷 マイルストーン")
 
-    fv = st.session_state.get("nt_form_ver", 0)  # フォームリセット用バージョン
+    fv = st.session_state.get("nt_form_ver", 0)
 
-    # ── 担当者リストの取得 ──────────────────────────────────────────────
-    # 既存のタスクからユニークな担当者名を取得
+    # ── 担当者リストの取得 ──
     try:
         all_tasks = load_tasks()
-        # Noneを除外し、重複を消してソート
-        existing_assignees = sorted(list(set(
-            t.get("assignee") for t in all_tasks if t.get("assignee")
-        )))
+        existing_assignees = sorted(list(set(t.get("assignee") for t in all_tasks if t.get("assignee"))))
     except:
         existing_assignees = []
 
-    # ── 基本情報 ────────────────────────────────────────────────────────
-    title = st.text_input("タスク名 *", key=f"nt_title_{fv}")
+    # ── 入力フォーム ──
+    title = st.text_input("項目名 (タスク名) *", key=f"nt_title_{fv}")
 
-    # 担当者入力の改善: 既存リストから選択 or 新規入力
-    st.write("担当者")
+    # マイルストーン設定の追加
+    is_milestone = st.checkbox("マイルストーンとして登録 (重要な節目・期日)", key=f"nt_is_ms_{fv}")
+    
+    if is_milestone:
+        st.info("🔷 マイルストーンとして登録されます。期限（実施日）を必ず入力してください。")
+
+    # 担当者選択
     c1, c2 = st.columns([0.4, 0.6])
     with c1:
-        selected_assignee = st.selectbox(
-            "既存から選択",
-            options=["(新規入力)"] + existing_assignees,
-            key=f"nt_assignee_sel_{fv}"
-        )
+        selected_assignee = st.selectbox("既存から選択", options=["(新規入力)"] + existing_assignees, key=f"nt_as_sel_{fv}")
     with c2:
-        # 選択肢が「新規入力」の時だけ入力可能にする、または上書き入力用
         default_val = "" if selected_assignee == "(新規入力)" else selected_assignee
-        assignee = st.text_input(
-            "担当者名を入力", 
-            value=default_val,
-            key=f"nt_assignee_text_{fv}",
-            placeholder="新しい名前を入力..."
-        )
+        assignee = st.text_input("担当者名", value=default_val, key=f"nt_as_txt_{fv}")
 
     col_left, col_right = st.columns(2)
     with col_left:
-        deadline = st.date_input(
-            "期限", value=None, format="YYYY-MM-DD", key=f"nt_deadline_{fv}",
-        )
+        deadline = st.date_input("期限 / 実施日 *", value=date.today(), key=f"nt_deadline_{fv}")
     with col_right:
         col_label_map = {c["key"]: c["label"] for c in COLUMNS}
-        status = st.selectbox(
-            "初期ステータス",
-            options=COL_KEYS,
-            format_func=lambda k: col_label_map[k],
-            key=f"nt_status_{fv}",
-        )
+        status = st.selectbox("ステータス", options=COL_KEYS, format_func=lambda k: col_label_map[k], key=f"nt_status_{fv}")
 
-    note = st.text_input("メモ", key=f"nt_note_{fv}")
+    note = st.text_input("メモ・詳細", key=f"nt_note_{fv}")
 
-    # ── 日時 ────────────────────────────────────────────────────────────
+    # ── 日時（マイルストーンでない場合のみ重要） ──
+    if not is_milestone:
+        st.divider()
+        st.caption("作業期間を設定する場合（タイムラインにバーで表示されます）")
+        started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s")
+        finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f")
+    else:
+        # マイルストーンの場合は内部的に空にする
+        started_at = None
+        finished_at = None
+
     st.divider()
-    started_at  = dt_input("開始日時を設定", "", key_prefix=f"nt_{fv}_s")
-    finished_at = dt_input("終了日時を設定", "", key_prefix=f"nt_{fv}_f")
-    st.divider()
+    # マイルストーン用のデフォルトカラーを設定（例：マゼンタなど目立つ色）
+    default_ms_color = "#E94560" if is_milestone else "#FFD166"
+    color = color_picker_with_swatches(f"nt_{fv}", default_color=default_ms_color)
 
-    # ── カラー ──────────────────────────────────────────────────────────
-    color = color_picker_with_swatches(f"nt_{fv}")
-
-    # ── 送信 ────────────────────────────────────────────────────────────
-    st.write("")
-    if st.button("タスクを追加", type="primary", use_container_width=True,
-                 key=f"nt_submit_{fv}"):
+    # ── 登録処理 ──
+    if st.button("登録する", type="primary", use_container_width=True):
         if not title.strip():
-            st.error("タスク名を入力してください")
+            st.error("項目名を入力してください")
             return
 
+        # マイルストーン用のフラグをnoteやtitleに隠しプロパティとして持たせるか、
+        # noteの先頭に [MS] と付与して判別しやすくする（DBのカラム追加なしで対応する場合）
+        final_note = f"[MS] {note.strip()}" if is_milestone else note.strip()
+        final_title = f"🔷 {title.strip()}" if is_milestone else title.strip()
+
         create_task({
-            "title":       title.strip(),
-            "assignee":    assignee.strip(), # c2のテキスト入力値を優先使用
+            "title":       final_title,
+            "assignee":    assignee.strip(),
             "deadline":    deadline.strftime("%Y-%m-%d") if deadline else "",
             "column":      status,
-            "note":        note.strip(),
+            "note":        final_note,
             "color":       color,
             "started_at":  started_at,
             "finished_at": finished_at,
         })
 
-        # フォームをリセットしてカンバンへ遷移
         _reset_form_state(fv)
-        st.session_state["_toast"] = f"「{title.strip()}」を追加しました"
-        # 遷移先を「担当者別」にする場合はここを "assignee" に変更
-        st.session_state.page = "assignee" 
+        st.session_state.page = "assignee"
         st.rerun()
-
 
 def _reset_form_state(current_ver: int) -> None:
     """nt_ プレフィックスのセッションステートをすべて削除してフォームをリセット。"""
