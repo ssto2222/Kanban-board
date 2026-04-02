@@ -1,6 +1,6 @@
 import streamlit as st
 from datetime import datetime, timezone
-from .client import get_supabase
+from db.client import get_supabase
 
 def load_tasks() -> list[dict]:
     """全タスクを読み込み、作成日時順に並べる"""
