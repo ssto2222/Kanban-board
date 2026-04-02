@@ -92,16 +92,10 @@ def dt_input(label: str, value: str = "", key_prefix: str = "") -> str:
 # ── カラーピッカー (状態同期・編集対応版) ──────────────────
 
 def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
-    """
-    丸ボタンとピッカーを同期。
-    編集時は引数の default_color (既存の色) を優先する。
-    """
     val_key = f"{key_prefix}_color_val"
     
-    # 編集モードなどで外部から渡された色が、現在のセッションと異なる場合は更新
-    if val_key not in st.session_state or (default_color and st.session_state.get("_last_def_clr") != default_color):
+    if val_key not in st.session_state:
         st.session_state[val_key] = default_color
-        st.session_state["_last_def_clr"] = default_color
 
     st.caption("カラー選択")
     swatches = ["#FFD166", "#06D6A0", "#118AB2", "#EF476F", "#E94560", "#4ECCA3", "#8E44AD"]
@@ -109,26 +103,22 @@ def color_picker_with_swatches(key_prefix: str, default_color: str = "#FFD166"):
     cols = st.columns(len(swatches))
     for i, sw in enumerate(swatches):
         with cols[i]:
-            # 見本の色丸
             st.markdown(
                 f'<div style="background:{sw};width:18px;height:18px;border-radius:50%;border:1px solid #fff;margin:auto;"></div>',
                 unsafe_allow_html=True
             )
-            # 透明なボタンで色を選択可能にする
+            # ── 修正：st.rerun() を削除 ──
             if st.button("選", key=f"{key_prefix}_sw_{i}"):
                 st.session_state[val_key] = sw
-                st.rerun()
+                # rerunしないことでダイアログの維持を優先
 
-    # カラーピッカー本体
-    # st.session_state[val_key] を value に指定することで、スウォッチボタンと完全同期
+    # ピッカーの初期値をセッションから取得
     chosen = st.color_picker(
         "カスタム色調整", 
         value=st.session_state[val_key], 
         key=f"{key_prefix}_cp_raw"
     )
     
-    # ピッカーで直接変更された場合
-    if chosen != st.session_state[val_key]:
-        st.session_state[val_key] = chosen
-
-    return st.session_state[val_key]
+    # セッション状態を更新（戻り値として利用）
+    st.session_state[val_key] = chosen
+    return chosen
