@@ -33,25 +33,39 @@ def render_new_task() -> None:
     if is_milestone:
         st.info("🔷 マイルストーンモード: 期限（実施日）を1日選んでください。")
 
-    # ── 2. 担当者入力 (選択 + 直接編集) ──────────────────────────────────
+   # ── 2. 担当者入力 (選択 + 直接編集) ──────────────────────────────────
     st.markdown("##### 👤 担当者設定")
     c1, c2 = st.columns([0.4, 0.6])
+    
     with c1:
+        # 既存リストから選択
         selected_assignee = st.selectbox(
             "既存から選択", 
             options=["(新規入力)"] + existing_assignees, 
             key=f"nt_as_sel_{fv}"
         )
+    
     with c2:
-        # selectboxの選択内容を初期値(value)にする。新規入力なら空、選んだらその名前。
-        default_name = "" if selected_assignee == "(新規入力)" else selected_assignee
+        # 🌟 ロジックのポイント:
+        # セレクトボックスで「新規入力」以外が選ばれた場合、その値を text_input のデフォルトにする。
+        # ただし、ユーザーが右側で書き換えた内容を保持したいため、
+        # 「セッションステートに値がない時」または「セレクトボックスが変更された時」のみ上書きするようにします。
+        
+        txt_key = f"nt_as_txt_{fv}"
+        
+        # セレクトボックスで具体的な名前が選ばれたら、それをテキスト欄の初期値として採用
+        if selected_assignee != "(新規入力)":
+            current_val = selected_assignee
+        else:
+            # 新規入力が選ばれている場合は、現在入力されている値を維持（初回は空）
+            current_val = st.session_state.get(txt_key, "")
+
         assignee = st.text_input(
             "担当者名 (直接編集・追記可)", 
-            value=default_name, 
-            key=f"nt_as_txt_{fv}",
+            value=current_val, 
+            key=txt_key,
             placeholder="名前を入力"
         )
-
     # ── 3. 期限とステータス ──────────────────────────────────────────────
     col_left, col_right = st.columns(2)
     with col_left:
