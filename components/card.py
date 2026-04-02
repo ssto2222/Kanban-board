@@ -49,10 +49,7 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
                     task_dialog(task)
                 
                 # 削除が必要な場合はここに追加
-                if st.button("🗑️ 削除", key=f"btn_del_{task_id}_{col_idx}", use_container_width=True):
-                    from db.tasks import delete_task
-                    delete_task(task_id)
-                    st.rerun()
+            
 
         # ── 4. 折りたたみ詳細部分（Expander） ──
         # ラベルには担当者を表示
