@@ -52,8 +52,8 @@ def render_card(task: dict, col_idx: int, show_status: bool = False) -> None:
             
 
         # ── 4. 折りたたみ詳細部分（Expander） ──
-        # ラベルには担当者を表示
-        with st.expander(f"👤 {assignee}", expanded=False):
+        # ラベルには期限を表示
+        with st.expander(f"⏳ {deadline_html(task.get("deadline", ""))}", expanded=False):
             # ステータス表示（必要時）
             if show_status:
                 st.markdown(
