@@ -51,14 +51,21 @@ def render_new_task() -> None:
 
     note = st.text_input("メモ・詳細", key=f"nt_note_{fv}")
 
-    # 作業期間
-    started_at = ""
-    finished_at = ""
-    if not is_milestone:
-        st.divider()
+    # ── 作業期間 ────────────────────────────────────────────────────
+    st.divider()
+    if is_milestone:
+        st.caption("ℹ️ マイルストーンのため作業期間は設定できません（期限日が実施日となります）")
+    else:
         st.caption("作業期間を設定する場合（タイムラインにバーで表示されます）")
-        started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s")
-        finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f")
+
+    # is_milestone が True なら disabled=True になるように設定
+    started_at  = dt_input("開始日時", "", key_prefix=f"nt_{fv}_s", disabled=is_milestone)
+    finished_at = dt_input("終了日時", "", key_prefix=f"nt_{fv}_f", disabled=is_milestone)
+
+    # 🌟 マイルストーン時は強制的に空文字にする（バリデーション用）
+    if is_milestone:
+        started_at = ""
+        finished_at = ""
 
     st.divider()
     
@@ -67,20 +74,18 @@ def render_new_task() -> None:
     
     with footer_container:
         default_ms_color = "#E94560" if is_milestone else "#FFD166"
-        # カラーピッカー (fragment)
         color_picker_with_swatches(f"nt_{fv}", default_color=default_ms_color)
 
-        st.write("") # スペース確保
+        st.write("") 
         
         # ── 登録処理 ────────────────────────────────────────────────────
-        # keyに fv を含めることで再描画時の整合性を維持
         if st.button("登録する", type="primary", use_container_width=True, key=f"nt_submit_btn_{fv}"):
-            # 1. 必須チェック
+            # (以下、登録ロジック)
             if not title.strip():
                 st.error("項目名を入力してください")
                 return
 
-            # 2. バリデーション：日時の整合性チェック
+            # バリデーション：マイルストーン時はスルー、通常時のみチェック
             if not is_milestone and finished_at:
                 try:
                     f_dt = datetime.strptime(finished_at, "%Y-%m-%d %H:%M")
