@@ -1,6 +1,7 @@
 import uuid
 from datetime import datetime
 from .client import get_supabase
+from supabase import create_client
 
 
 def load_tasks() -> list[dict]:
@@ -13,7 +14,7 @@ def create_task(data: dict):
     clean_data = {
         k: (v if v is not None else "") for k, v in data.items()
     }
-    return supabase.table("tasks").insert(clean_data).execute()
+    return get_supabase().table("tasks").insert(clean_data).execute()
     
     get_supabase().table("tasks").insert({
         "id":         str(uuid.uuid4()),
