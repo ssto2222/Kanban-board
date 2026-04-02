@@ -5,7 +5,6 @@ from config import COL_KEYS, COL_META
 from db.tasks import create_task, update_task, delete_task
 from utils.helpers import dt_input, color_picker_with_swatches
 
-
 @st.dialog("タスク詳細", width="small")
 def task_dialog(task: dict | None = None) -> None:
     is_edit = task is not None
@@ -58,7 +57,8 @@ def task_dialog(task: dict | None = None) -> None:
             dl_val = datetime.strptime(task["deadline"], "%Y-%m-%d").date()
         except Exception:
             pass
-    deadline = st.date_input("期限", value=dl_val, format="YYYY-MM-DD")
+    # デフォルトを今日に設定
+    deadline = st.date_input("期限", value=dl_val if dl_val else datetime.now().date(), format="YYYY-MM-DD")
 
     note = st.text_input("メモ", value=task.get("note", "") if is_edit else "", key="dlg_note")
 
@@ -81,9 +81,30 @@ def task_dialog(task: dict | None = None) -> None:
 
     with c2:
         if st.button("保存する", type="primary", use_container_width=True, key="dlg_save"):
+            # 1. 必須入力チェック
             if not title.strip():
                 st.error("タスク名を入力してください")
                 st.stop()
+            
+            # 2. 🌟 バリデーション：終了日時が期限を超えていないか
+            # 文字列 "YYYY-MM-DD HH:MM" を比較用にパース
+            if finished_at:
+                try:
+                    f_dt = datetime.strptime(finished_at, "%Y-%m-%d %H:%M")
+                    # 期限（日）と比較するために .date() を取得
+                    if deadline and f_dt.date() > deadline:
+                        st.error(f"❌ 終了日時は期限（{deadline}）以前に設定してください")
+                        st.stop()
+                    
+                    # 3. 🌟 バリデーション：開始が終了より前か
+                    if started_at:
+                        s_dt = datetime.strptime(started_at, "%Y-%m-%d %H:%M")
+                        if s_dt > f_dt:
+                            st.error("❌ 開始日時は終了日時より前に設定してください")
+                            st.stop()
+                except ValueError:
+                    pass # 日時形式エラーはここでは無視（dt_inputの仕様に任せる）
+
             payload = {
                 "title":       title.strip(),
                 "assignee":    assignee.strip(),
