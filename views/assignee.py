@@ -37,7 +37,7 @@ def render_assignee(tasks: list[dict]) -> None:
         # --- ここから追加: カラムヘッダーの表示 ---
         header_cols = st.columns(len(COLUMNS), gap="medium")
         for i, col_def in enumerate(COLUMNS):
-          with cols[i]:
+          with header_cols[i]:
             col_key = col_def["key"]
             # 現在のカラムに属するタスクをフィルタリング
             col_tasks = [t for t in tasks if t.get("column") == col_key]
