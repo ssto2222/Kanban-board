@@ -31,7 +31,7 @@ _CSS = """
 """
 
 def _get_wd(dt: datetime) -> str:
-    return ["月", "火", "水", "木", "金", "土", "日"][dt.weekday()]
+    return ["月", "火", "水", "木", "金", "土", "日"][dt.weekday()]
 
 def _get_group_label(task: dict, mode: str) -> str:
     if mode == "担当者": return task.get("assignee") or "（未設定）"
