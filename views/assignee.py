@@ -39,7 +39,13 @@ def render_assignee(tasks: list[dict]) -> None:
         for i, col_def in enumerate(COLUMNS):
             with header_cols[i]:
                 # 太字や背景色などでヘッダーっぽく装飾
-                st.markdown(f"**{col_def['label']}**") 
+                st.markdown(
+                f'''<div class="col-hdr" style="background:{col_def["bg"]}">
+                <span>{col_def["label"]}</span>
+                <span class="badge">{len(col_tasks)}</span>
+                </div>''',
+                unsafe_allow_html=True,
+            )
         # ---------------------------------------
         sub_cols = st.columns(len(COLUMNS), gap="medium")
         for i, col_def in enumerate(COLUMNS):
