@@ -52,9 +52,9 @@ def render_timeline(tasks: list[dict]) -> None:
         
         if not s and not deadline_str: continue
         
-        if not s: # 開始がない場合は期限の前日に設定
+        if not s: # 開始がない場合は期限の一週間前に設定
             d_dt = datetime.strptime(deadline_str, "%Y-%m-%d")
-            s = d_dt - timedelta(days=1)
+            s = d_dt - timedelta(days=7)
         if not e:
             e = s + timedelta(hours=23)
 
