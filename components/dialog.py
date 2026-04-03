@@ -104,7 +104,7 @@ def task_dialog(task: dict | None = None) -> None:
             st.rerun()
 
     if is_edit:
-        with st.expander("危険な操作"):
+        with st.expander("削除する"):
             if st.button("🗑 このタスクを完全に削除", use_container_width=True, key="dlg_del"):
                 try:
                     delete_task(task["id"])
