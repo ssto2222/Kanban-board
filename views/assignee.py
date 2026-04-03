@@ -34,7 +34,13 @@ def render_assignee(tasks: list[dict]) -> None:
         
         # ヘッダー (省略)
         st.markdown(f"### {html_escape(name)}")
-       
+        # --- ここから追加: カラムヘッダーの表示 ---
+        header_cols = st.columns(len(COLUMNS), gap="medium")
+        for i, col_def in enumerate(COLUMNS):
+            with header_cols[i]:
+                # 太字や背景色などでヘッダーっぽく装飾
+                st.markdown(f"**{col_def['name']}**") 
+        # ---------------------------------------
         sub_cols = st.columns(len(COLUMNS), gap="medium")
         for i, col_def in enumerate(COLUMNS):
             with sub_cols[i]:
