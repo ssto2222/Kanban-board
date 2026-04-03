@@ -1,3 +1,8 @@
+from datetime import timedelta, timezone
+
+# 日本標準時 (UTC+9) の定義
+JST = timezone(timedelta(hours=9))
+
 STICKY_COLORS = [
     "#FFD166", "#EF476F", "#06D6A0", "#118AB2", "#FFB347",
     "#C77DFF", "#F72585", "#4CC9F0", "#80ED99",
