@@ -7,158 +7,106 @@ from config import COL_META, JST
 from utils.helpers import get_priority_color, parse_dt
 from components.dialog import task_dialog
 
-# ── CSS (スタイル定義) ──────────────────────────────────────────────────
+# ── CSS (レイアウト崩れ防止とクリック感の向上) ──────────────────────
 _CSS = """
 <style>
 .tl-wrap { background: #1a1a2e; border-radius: 8px; padding: 8px 0; overflow-x: auto; box-shadow: inset 0 0 10px rgba(0,0,0,0.5); }
-.tl-axis-row { display: flex; align-items: flex-end; height: 45px; border-bottom: 2px solid #444; position: sticky; top: 0; background: #1a1a2e; z-index: 20; }
+.tl-axis-row { display: flex; align-items: flex-end; height: 50px; border-bottom: 2px solid #444; position: sticky; top: 0; background: #1a1a2e; z-index: 20; }
 .tl-group-col { width: 140px; min-width: 140px; flex-shrink: 0; border-right: 1px solid #444; }
-.tl-chart-col { flex: 1; position: relative; height: 45px; }
+.tl-chart-col { flex: 1; position: relative; height: 50px; }
 .tl-tick { position: absolute; font-size: 10px; color: #9a9ab0; text-align: center; transform: translateX(-50%); line-height: 1.2; padding-bottom: 5px; white-space: nowrap; }
 .tl-tick.sat { color: #4ecca3; font-weight: bold; }
 .tl-tick.sun { color: #ff4b2b; font-weight: bold; }
 .tl-row { display: flex; align-items: stretch; border-bottom: 1px solid #2a2a4a; position: relative; }
-.tl-group-name { width: 140px; min-width: 140px; padding: 10px; font-size: 12px; font-weight: bold; color: #eaeaea; border-right: 1px solid #2a2a4a; display: flex; align-items: flex-start; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; box-sizing: border-box; background: #1a1a2e; position: sticky; left: 0; z-index: 15; }
+.tl-group-name { width: 140px; min-width: 140px; padding: 10px; font-size: 12px; font-weight: bold; color: #eaeaea; border-right: 1px solid #2a2a4a; display: flex; align-items: flex-start; background: #1a1a2e; position: sticky; left: 0; z-index: 15; word-break: break-all; }
 .tl-chart-area { flex: 1; position: relative; min-height: 60px; }
-.tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: #2a2a4a; z-index: 0; }
-.tl-today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #e94560; z-index: 10; box-shadow: 0 0 4px #e94560; }
-.tl-bar-outer { position: absolute; height: 24px; z-index: 2; cursor: pointer; transition: transform 0.2s; }
-.tl-bar-outer:hover { transform: scaleY(1.1); z-index: 5; opacity: 0.9; }
-.tl-bar-fill { width: 100%; height: 100%; border-radius: 12px; box-shadow: 1px 2px 5px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; overflow: hidden; display: flex; align-items: center; padding: 0 10px; }
-.tl-bar-ms { border: 2px solid #ffffff !important; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
-.tl-bar-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: bold; color: #fff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 1px 4px rgba(0,0,0,0.8); pointer-events: none; width: 100%; }
+.tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: #2a2a4a; z-index: 0; pointer-events: none; }
+.tl-today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #e94560; z-index: 10; box-shadow: 0 0 4px #e94560; pointer-events: none; }
+.tl-bar-outer { position: absolute; height: 26px; z-index: 12; cursor: pointer; transition: transform 0.1s; }
+.tl-bar-outer:hover { transform: scaleY(1.15); z-index: 100; }
+.tl-bar-fill { width: 100%; height: 100%; border-radius: 4px; box-shadow: 1px 1px 3px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; display: flex; align-items: center; padding: 0 8px; }
+.tl-bar-ms { border: 2px solid #ffffff !important; box-shadow: 0 0 8px rgba(255,255,255,0.6); }
+.tl-bar-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: bold; color: #fff; text-shadow: 1px 1px 2px #000; pointer-events: none; }
 </style>
 """
 
 def _get_wd(dt: datetime) -> str:
-    """曜日の日本語表記を取得"""
     return ["月", "火", "水", "木", "金", "土", "日"][dt.weekday()]
 
 def _get_group_label(task: dict, mode: str) -> str:
-    """グループ分けのラベルを取得"""
-    if mode == "担当者":
-        return task.get("assignee") or "（未設定）"
-    col_id = task.get("column", "todo")
-    return COL_META.get(col_id, {}).get("label", "不明")
+    if mode == "担当者": return task.get("assignee") or "（未設定）"
+    return COL_META.get(task.get("column", "todo"), {}).get("label", "不明")
 
 def render_timeline(tasks: list[dict]) -> None:
-    """タイムラインのメインレンダリング関数"""
-    st.markdown("## 📅 タイムライン (未完了のみ)")
     st.markdown(_CSS, unsafe_allow_html=True)
 
-    # セッション状態の初期化
-    if 'tl_ver' not in st.session_state:
-        st.session_state['tl_ver'] = 0
-    if 'editing_task_id' not in st.session_state:
-        st.session_state['editing_task_id'] = None
+    # 1. セッション初期化
+    if 'editing_task_id' not in st.session_state: st.session_state['editing_task_id'] = None
+    if 'tl_ver' not in st.session_state: st.session_state['tl_ver'] = 0
 
     today = datetime.now(JST).replace(hour=0, minute=0, second=0, microsecond=0)
 
-    # ── 1. コントロールパネル ───────────────────────────────────────────
-    ctrl_l, ctrl_r = st.columns(2)
+    # ── 2. コントロールパネル ─────────────────────
+    ctrl_l, ctrl_r = st.columns([1, 2])
     with ctrl_l:
-        group_by = st.radio("グループ分け", ["担当者", "ステータス"], horizontal=True, key="tl_grp")
+        group_by = st.radio("グループ分け", ["担当者", "ステータス"], horizontal=True, key="tl_grp_radio")
     with ctrl_r:
-        view_mode = st.select_slider(
-            "表示スパン",
-            options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)", "年次 (12ヶ月)"],
-            value="日次 (2週間)",
-            key="tl_scale"
-        )
+        view_mode = st.select_slider("表示スパン", 
+            options=["日次 (2週間)", "週次 (2ヶ月)", "月次 (6ヶ月)", "年次 (12ヶ月)"], 
+            value="日次 (2週間)", key="tl_scale_slider")
 
-    # ── 2. 表示範囲とスケールの決定 ──────────────────────────────────────
-    if "日次" in view_mode:
-        days_back, days_fwd, interval = 3, 11, timedelta(days=1)
-        chart_min_width = 1000
-    elif "週次" in view_mode:
-        days_back, days_fwd, interval = 14, 46, timedelta(days=1)
-        chart_min_width = 1200
-    elif "月次" in view_mode:
-        days_back, days_fwd, interval = 30, 150, timedelta(days=3)
-        chart_min_width = 1800
-    else:
-        days_back, days_fwd, interval = 30, 335, timedelta(days=7)
-        chart_min_width = 2800
+    # 表示範囲決定
+    if "日次" in view_mode: days_back, days_fwd, interval = 3, 11, timedelta(days=1); chart_min_width = 1000
+    elif "週次" in view_mode: days_back, days_fwd, interval = 14, 46, timedelta(days=1); chart_min_width = 1200
+    elif "月次" in view_mode: days_back, days_fwd, interval = 30, 150, timedelta(days=3); chart_min_width = 1800
+    else: days_back, days_fwd, interval = 30, 335, timedelta(days=7); chart_min_width = 2500
 
     chart_min = today - timedelta(days=days_back)
     chart_max = today + timedelta(days=days_fwd)
     total_secs = (chart_max - chart_min).total_seconds()
+    def get_pct(dt: datetime) -> float: return (dt - chart_min).total_seconds() / total_secs * 100
 
-    def get_pct(dt: datetime) -> float:
-        return (dt - chart_min).total_seconds() / total_secs * 100
-
-    # ── 3. データ加工とフィルタリング ────────────────────────────────────
-    processed_rows: list[dict] = []
-    task_lookup: dict[str, dict] = {}
-
+    # ── 3. データ加工 ──────────────────────────
+    processed_rows, task_lookup = [], {}
     for t in tasks:
-        if t.get("column") == "done":
-            continue
-        task_id = t.get("id")
-        if not task_id:
-            continue
-
-        title = t.get("title", "無題")
-        is_ms = "🔷" in title
-        s = parse_dt(t.get("started_at"))
-        e = parse_dt(t.get("finished_at"))
-        deadline_str = t.get("deadline", "")
-        status = t.get("column", "todo")
-
-        # 開始日がない場合は期限から逆算
-        if not s and deadline_str:
+        if t.get("column") == "done": continue
+        tid = t.get("id")
+        if not tid: continue
+        s, e = parse_dt(t.get("started_at")), parse_dt(t.get("finished_at"))
+        if not s and t.get("deadline"):
             try:
-                d_dt = datetime.strptime(deadline_str, "%Y-%m-%d").replace(tzinfo=JST)
-                s, e = d_dt - timedelta(days=1), d_dt
-            except:
-                continue
-
-        if not s:
-            continue
-        if s and not e:
-            e = s + timedelta(hours=23)
-        if e < chart_min or s > chart_max:
-            continue
-
-        display_color = get_priority_color(deadline_str, t.get("color", "#FFD166"), column=status)
-
+                d = datetime.strptime(t["deadline"], "%Y-%m-%d").replace(tzinfo=JST)
+                s, e = d - timedelta(days=1), d
+            except: continue
+        if not s: continue
+        if not e: e = s + timedelta(hours=23)
+        if e < chart_min or s > chart_max: continue
+        
         processed_rows.append({
-            "id": task_id,
-            "title": title,
-            "start": max(s, chart_min),
-            "end": min(e, chart_max),
-            "group": _get_group_label(t, group_by),
-            "color": display_color,
-            "is_ms": is_ms,
+            "id": tid, "title": t.get("title", "無題"), "start": max(s, chart_min), "end": min(e, chart_max),
+            "group": _get_group_label(t, group_by), 
+            "color": get_priority_color(t.get("deadline", ""), t.get("color", "#FFD166"), t.get("column", "todo")),
+            "is_ms": "🔷" in t.get("title", "")
         })
-        task_lookup[task_id] = t
+        task_lookup[tid] = t
 
-    # ── 4. 目盛り(Ticks)生成 ──────────────────────────────────────────
+    # ── 4. 目盛り(Ticks)生成 ───────────────────────
     ticks = []
     curr = chart_min.replace(hour=0, minute=0, second=0, microsecond=0)
-    last_month = -1
     while curr <= chart_max:
         p = get_pct(curr)
         if 0 <= p <= 100:
-            wd = _get_wd(curr)
             label = ""
-            if "日次" in view_mode:
-                label = f"{curr.strftime('%m/%d')}<br>({wd})"
-            elif "週次" in view_mode:
-                if curr.weekday() == 0:
-                    label = f"{curr.strftime('%m/%d')}"
-            elif "月次" in view_mode:
-                if curr.day == 1 or curr.day == 15:
-                    label = f"<b>{curr.strftime('%m/%d')}</b>"
-            else:
-                if curr.month != last_month:
-                    label = f"<span style='color:#fff;'>{curr.strftime('%Y/%m')}</span>"
-                    last_month = curr.month
+            if "日次" in view_mode: label = f"{curr.strftime('%m/%d')}<br>({_get_wd(curr)})"
+            elif "週次" in view_mode and curr.weekday() == 0: label = f"{curr.strftime('%m/%d')}"
+            elif "月次" in view_mode and (curr.day == 1 or curr.day == 15): label = f"{curr.strftime('%m/%d')}"
             ticks.append((p, label, curr.weekday()))
         curr += interval
 
-    # ── 5. HTML 構築 ──────────────────────────────────────────────────
+    # ── 5. HTML 構築 ─────────────────────────────
     h = [f'<div class="tl-wrap">']
+    
+    # ヘッダー行
     h.append(f'<div class="tl-axis-row"><div class="tl-group-col"></div><div class="tl-chart-col" style="min-width:{chart_min_width}px;">')
     for p, label, wd in ticks:
         if label:
@@ -166,95 +114,78 @@ def render_timeline(tasks: list[dict]) -> None:
             h.append(f'<div class="tl-tick {cls}" style="left:{p:.2f}%">{label}</div>')
     h.append('</div></div>')
 
-    group_map: dict[str, list] = {}
-    for r in processed_rows:
-        group_map.setdefault(r["group"], []).append(r)
-
-    BAR_HEIGHT, BAR_MARGIN, ROW_PADDING = 24, 8, 15
+    # グループ化描画
+    group_map = {}
+    for r in processed_rows: group_map.setdefault(r["group"], []).append(r)
+    BAR_HEIGHT, BAR_MARGIN, ROW_PADDING = 26, 8, 15
 
     for grp in sorted(group_map.keys()):
         grp_tasks = sorted(group_map[grp], key=lambda x: x["start"])
-        lanes: list[datetime] = []
-        task_layout = []
+        lanes, task_layout = [], []
         for t in grp_tasks:
             lane_idx = next((i for i, end in enumerate(lanes) if t["start"] >= end), -1)
-            if lane_idx == -1:
-                lanes.append(t["end"])
-                lane_idx = len(lanes) - 1
-            else:
-                lanes[lane_idx] = t["end"]
+            if lane_idx == -1: lanes.append(t["end"]); lane_idx = len(lanes) - 1
+            else: lanes[lane_idx] = t["end"]
             task_layout.append((t, lane_idx))
 
-        row_h = max(ROW_PADDING * 2 + len(lanes) * (BAR_HEIGHT + BAR_MARGIN), 60)
+        row_h = max(ROW_PADDING * 2 + len(lanes) * (BAR_HEIGHT + BAR_MARGIN), 65)
         h.append(f'<div class="tl-row" style="height:{row_h}px;">')
-        h.append(f'<div class="tl-group-name" title="{html_mod.escape(grp)}">{html_mod.escape(grp)}</div>')
+        h.append(f'<div class="tl-group-name">{html_mod.escape(grp)}</div>')
         h.append(f'<div class="tl-chart-area" style="min-width:{chart_min_width}px;">')
 
+        # グリッド背景
         for p, _, _ in ticks:
             h.append(f'<div class="tl-gridline" style="left:{p:.2f}%"></div>')
-
+        
+        # 今日ライン
         tp = get_pct(datetime.now(JST))
-        if 0 <= tp <= 100:
-            h.append(f'<div class="tl-today-line" style="left:{tp:.2f}%"></div>')
+        if 0 <= tp <= 100: h.append(f'<div class="tl-today-line" style="left:{tp:.2f}%"></div>')
 
+        # バー
         for t, lane_idx in task_layout:
-            left = get_pct(t["start"])
-            width = max(get_pct(t["end"]) - left, 0.5)
-            top = ROW_PADDING + lane_idx * (BAR_HEIGHT + BAR_MARGIN)
-            title_esc = html_mod.escape(t["title"])
-            ms_class = " tl-bar-ms" if t.get("is_ms") else ""
+            l_pct, r_pct = get_pct(t["start"]), get_pct(t["end"])
+            w_pct = max(r_pct - l_pct, 0.8)
+            top_px = ROW_PADDING + lane_idx * (BAR_HEIGHT + BAR_MARGIN)
             
-            # BroadcastChannel + sessionStorage を利用してクリックを確実に検知
-            click_js = f"sessionStorage.setItem('tl_clicked_id', '{t['id']}'); new BroadcastChannel('kanban_tl').postMessage('{t['id']}');"
+            # JS通信用
+            c_js = f"sessionStorage.setItem('tl_selected_id', '{t['id']}'); window.dispatchEvent(new CustomEvent('tl_click'));"
             
             h.append(
-                f'<div class="tl-bar-outer" style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;" '
-                f'onclick="{click_js}">'
-                f'<div class="tl-bar-fill{ms_class}" style="background:{t["color"]};" title="{title_esc}">'
-                f'<div class="tl-bar-name">{title_esc}</div></div></div>'
+                f'<div class="tl-bar-outer" style="left:{l_pct:.2f}%; width:{w_pct:.2f}%; top:{top_px}px;" onclick="{c_js}">'
+                f'<div class="tl-bar-fill{" tl-bar-ms" if t["is_ms"] else ""}" style="background:{t["color"]};">'
+                f'<div class="tl-bar-name">{html_mod.escape(t["title"])}</div></div></div>'
             )
         h.append('</div></div>')
-
     h.append('</div>')
     st.markdown("".join(h), unsafe_allow_html=True)
 
-    # ── 6. クリック検出 (JavaScript 連携) ──────────────────────────────
-    # JSで値を待ち受け、Python側に受け渡す
+    # ── 6. クリック検出ロジック (イベントリスナー方式) ──────────────
     clicked_id = st_javascript("""
         (async () => {
-            const bc = new BroadcastChannel('kanban_tl');
-            const result = await new Promise(resolve => {
-                // 1. 直前のクリックが sessionStorage に残っていれば即座に返す
-                const stored = sessionStorage.getItem('tl_clicked_id');
-                if (stored) {
-                    sessionStorage.removeItem('tl_clicked_id');
-                    resolve(stored);
-                    return;
-                }
-                // 2. なければメッセージをリッスンする
-                bc.onmessage = (e) => {
-                    bc.close();
-                    sessionStorage.removeItem('tl_clicked_id');
-                    resolve(e.data);
+            return await new Promise(resolve => {
+                const check = () => {
+                    const id = sessionStorage.getItem('tl_selected_id');
+                    if (id) {
+                        sessionStorage.removeItem('tl_selected_id');
+                        resolve(id);
+                    }
                 };
-                // 3. 2秒経っても何もなければ一旦終了
-                setTimeout(() => resolve(null), 2000);
+                window.addEventListener('tl_click', check);
+                setTimeout(() => resolve(null), 3000); // 3秒でタイムアウト
             });
-            return result;
         })()
-    """, key=f"tl_js_poll_{st.session_state['tl_ver']}")
+    """, key=f"poll_{st.session_state['tl_ver']}")
 
-    # ── 7. 編集ダイアログの表示 ─────────────────────────────────────────
-    # JSからIDが渡ってきた場合
+    # ── 7. Python側でのダイアログ起動 ──────────────────────────────
     if clicked_id and isinstance(clicked_id, str) and clicked_id in task_lookup:
         st.session_state['editing_task_id'] = clicked_id
-        st.session_state['tl_ver'] += 1  # JSコンポーネントをリフレッシュ
+        st.session_state['tl_ver'] += 1
         st.rerun()
 
-    # 表示フラグが立っている場合にダイアログを実行
     if st.session_state.get('editing_task_id'):
         tid = st.session_state['editing_task_id']
         if tid in task_lookup:
             task_dialog(task_lookup[tid])
-            # ダイアログの外側の処理としてIDをリセット
+            # ダイアログ終了後、状態をクリア
             st.session_state['editing_task_id'] = None
+            st.rerun()
