@@ -6,126 +6,111 @@ from config import COL_META, JST
 from utils.helpers import get_priority_color, parse_dt
 from components.dialog import task_dialog
 
-# ── 1. CSS: 崩れを最小限にし、クリックを最優先する ───────────────────
+# ── CSS (レイアウト維持と透明ボタン用) ────────────────────────────────
 _CSS = """
 <style>
-/* タイムライン全体のコンテナ */
-.tl-container { width: 100%; background: #1a1a2e; color: #eee; border-radius: 10px; overflow-x: auto; font-family: sans-serif; }
-/* ヘッダー（日付） */
-.tl-header { display: flex; border-bottom: 2px solid #444; position: sticky; top: 0; background: #1a1a2e; z-index: 10; height: 45px; }
-.tl-label-col { width: 150px; min-width: 150px; border-right: 1px solid #444; flex-shrink: 0; }
-.tl-time-col { flex-grow: 1; position: relative; }
-/* 行（ステータス/担当者ごと） */
-.tl-row { display: flex; border-bottom: 1px solid #333; position: relative; min-height: 80px; }
-.tl-row-label { width: 150px; min-width: 150px; padding: 10px; background: #1a1a2e; border-right: 1px solid #444; font-size: 13px; font-weight: bold; position: sticky; left: 0; z-index: 5; }
-.tl-row-content { flex-grow: 1; position: relative; }
-/* 目盛り線 */
-.tl-grid-line { position: absolute; top: 0; bottom: 0; width: 1px; background: rgba(255,255,255,0.05); pointer-events: none; }
-.tl-today-marker { position: absolute; top: 0; bottom: 0; width: 2px; background: #ff4b2b; z-index: 2; pointer-events: none; }
-/* タスクバー: aタグにして確実にリンクとして機能させる */
-.tl-task-link { position: absolute; height: 28px; text-decoration: none !important; color: white !important; z-index: 100; transition: transform 0.1s; }
-.tl-task-link:hover { transform: scale(1.03); filter: brightness(1.2); z-index: 101; }
-.tl-task-bar { width: 100%; height: 100%; border-radius: 5px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; font-weight: bold; box-sizing: border-box; box-shadow: 1px 2px 4px rgba(0,0,0,0.3); border: 1px solid rgba(255,255,255,0.2); }
-.tl-date-tick { position: absolute; font-size: 10px; transform: translateX(-50%); top: 15px; color: #888; }
+.tl-container { width: 100%; background: #1a1a2e; border-radius: 8px; overflow: hidden; border: 1px solid #333; }
+.tl-header { display: flex; background: #16213e; border-bottom: 2px solid #444; height: 40px; position: sticky; top: 0; z-index: 10; }
+.tl-side { width: 120px; min-width: 120px; border-right: 1px solid #444; flex-shrink: 0; z-index: 5; background: #16213e; }
+.tl-main { flex-grow: 1; position: relative; overflow-x: auto; }
+.tl-row { display: flex; border-bottom: 1px solid #2a2a4a; min-height: 70px; position: relative; }
+.tl-row-label { width: 120px; min-width: 120px; padding: 10px; font-size: 12px; font-weight: bold; border-right: 1px solid #444; background: #1a1a2e; }
+.tl-canvas { flex-grow: 1; position: relative; background-image: linear-gradient(90deg, rgba(255,255,255,0.05) 1px, transparent 1px); background-size: 50px 100%; }
+/* バーの見た目 */
+.tl-bar { position: absolute; height: 28px; border-radius: 4px; display: flex; align-items: center; padding: 0 8px; font-size: 11px; color: white; font-weight: bold; pointer-events: none; border: 1px solid rgba(255,255,255,0.2); box-shadow: 1px 1px 3px rgba(0,0,0,0.3); white-space: nowrap; overflow: hidden; }
+/* Streamlitボタンを透明化して重ねるためのハック */
+div[data-testid="stButton"] > button {
+    background: transparent !important;
+    border: none !important;
+    color: transparent !important;
+    width: 100% !important;
+    height: 100% !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    z-index: 100 !important;
+}
+.button-container { position: absolute; z-index: 100; }
 </style>
 """
 
 def render_timeline(tasks: list[dict]) -> None:
     st.markdown(_CSS, unsafe_allow_html=True)
+    st.markdown("### 📅 タイムライン")
 
-    # ── 2. クリック（URLパラメータ）のチェック ────────────────────────
-    # URLに edit_id があれば、それを優先してダイアログ表示対象にする
-    q_params = st.query_params
-    target_id = q_params.get("edit_id")
-
-    # ── 3. 設定と計算 ───────────────────────────────────────────
+    # 1. 設定
     today = datetime.now(JST).replace(hour=0, minute=0, second=0, microsecond=0)
+    col1, col2 = st.columns(2)
+    with col1:
+        group_by = st.radio("表示単位", ["担当者", "ステータス"], horizontal=True)
     
-    # スパン選択（シンプルに）
-    view_mode = st.radio("スパン", ["2週間", "1ヶ月", "3ヶ月"], horizontal=True, key="tl_v2_span")
-    group_by = st.radio("グループ", ["担当者", "ステータス"], horizontal=True, key="tl_v2_grp")
-
-    days_back, days_fwd = (3, 11) if view_mode == "2週間" else (7, 23) if view_mode == "1ヶ月" else (14, 76)
-    chart_min = today - timedelta(days=days_back)
-    chart_max = today + timedelta(days=days_fwd)
+    # 固定スパン（計算を安定させるため14日間に固定推奨）
+    chart_min = today - timedelta(days=3)
+    chart_max = today + timedelta(days=11)
     total_days = (chart_max - chart_min).days + 1
     
-    # 1日あたりの%幅
-    day_w = 100.0 / total_days
-    def get_pos(dt: datetime) -> float:
-        diff = (dt - chart_min).total_seconds() / 86400.0
-        return diff * day_w
-
-    # ── 4. データ整理 ───────────────────────────────────────────
-    processed = []
-    task_lookup = {}
+    # 2. データ加工
+    group_map = {}
     for t in tasks:
         if t.get("column") == "done": continue
-        tid = t.get("id")
-        if not tid: continue
-        s, e = parse_dt(t.get("started_at")), parse_dt(t.get("finished_at"))
+        s = parse_dt(t.get("started_at"))
         if not s: continue
-        if not e: e = s + timedelta(hours=23)
+        e = parse_dt(t.get("finished_at")) or (s + timedelta(hours=23))
         if e < chart_min or s > chart_max: continue
 
-        label = (t.get("assignee") or "未設定") if group_by == "担当者" else COL_META.get(t.get("column", "todo"), {}).get("label", "不明")
-        
-        processed.append({
-            "id": tid, "title": t.get("title", "無題"), "start": max(s, chart_min), "end": min(e, chart_max),
-            "group": label, "color": get_priority_color(t.get("deadline", ""), t.get("color", "#666"), t.get("column", "todo"))
+        g_label = (t.get("assignee") or "未設定") if group_by == "担当者" else COL_META.get(t.get("column", "todo"), {}).get("label", "不明")
+        group_map.setdefault(g_label, []).append({
+            "id": t["id"], "title": t["title"], "start": max(s, chart_min), "end": min(e, chart_max),
+            "color": get_priority_color(t.get("deadline", ""), t.get("color", "#555"), t.get("column", "todo")), "raw": t
         })
-        task_lookup[tid] = t
 
-    # ── 5. HTML構築 ─────────────────────────────────────────────
-    h = ['<div class="tl-container">']
+    # 3. HTML & Button 描画
+    st.write("---")
     
-    # ヘッダー (日付目盛り)
-    h.append('<div class="tl-header"><div class="tl-label-col"></div><div class="tl-time-col">')
+    # 日付ヘッダー
+    cols = st.columns([1.5] + [1] * total_days)
+    cols[0].write("対象")
     for i in range(total_days):
         d = chart_min + timedelta(days=i)
-        left = i * day_w
-        h.append(f'<div class="tl-date-tick" style="left:{left + day_w/2:.2f}%">{d.strftime("%m/%d")}</div>')
-        h.append(f'<div class="tl-grid-line" style="left:{left:.2f}%"></div>')
-    h.append('</div></div>')
+        cols[i+1].caption(d.strftime("%m/%d"))
 
-    # グループ分け
-    group_names = sorted(list(set(p["group"] for p in processed)))
-    for gn in group_names:
-        h.append(f'<div class="tl-row"><div class="tl-row-label">{html_mod.escape(gn)}</div><div class="tl-row-content">')
-        
-        # 今日ライン
-        t_pos = get_pos(datetime.now(JST))
-        if 0 <= t_pos <= 100: h.append(f'<div class="tl-today-marker" style="left:{t_pos:.2f}%"></div>')
-
-        # タスクバー
-        grp_tasks = [p for p in processed if p["group"] == gn]
-        lanes = []
-        for t in sorted(grp_tasks, key=lambda x: x["start"]):
-            l_idx = next((i for i, end in enumerate(lanes) if t["start"] >= end), -1)
-            if l_idx == -1: lanes.append(t["end"]); l_idx = len(lanes)-1
-            else: lanes[l_idx] = t["end"]
-
-            left, width = get_pos(t["start"]), max(get_pos(t["end"]) - get_pos(t["start"]), day_w * 0.8)
-            top = 10 + l_idx * 32
+    for gn in sorted(group_map.keys()):
+        row_container = st.container()
+        with row_container:
+            # 1行を2カラムに分ける（ラベル | チャートエリア）
+            l_col, r_col = st.columns([1.5, total_days])
+            l_col.info(f"**{gn}**")
             
-            # リンクにクエリパラメータを仕込む（絶対確実な遷移）
-            href = f"?edit_id={t['id']}"
-            
-            h.append(
-                f'<a href="{href}" target="_self" class="tl-task-link" style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;">'
-                f'<div class="tl-task-bar" style="background:{t["color"]};" title="{html_mod.escape(t["title"])}">'
-                f'{html_mod.escape(t["title"])}</div></a>'
-            )
-        h.append('</div></div>')
-    h.append('</div>')
-    
-    st.markdown("".join(h), unsafe_allow_html=True)
+            with r_col:
+                # この相対ポジション用コンテナの中でバーを描画
+                st.markdown('<div style="position: relative; height: 80px; width: 100%;">', unsafe_allow_html=True)
+                
+                grp_tasks = sorted(group_map[gn], key=lambda x: x["start"])
+                lanes = []
+                for t in grp_tasks:
+                    # 重なり管理（レーン分け）
+                    lane_idx = next((i for i, end in enumerate(lanes) if t["start"] >= end), -1)
+                    if lane_idx == -1: lanes.append(t["end"]); lane_idx = len(lanes)-1
+                    else: lanes[lane_idx] = t["end"]
 
-    # ── 6. ダイアログ起動 ─────────────────────────────────────────
-    if target_id and target_id in task_lookup:
-        task_dialog(task_lookup[target_id])
-        
-        # ダイアログを閉じるためのリセットボタン
-        if st.button("一覧に戻る (編集完了)"):
-            st.query_params.clear()
-            st.rerun()
+                    # 位置計算 (0.0 ~ 100.0%)
+                    left = ((t["start"] - chart_min).days / total_days) * 100
+                    width = (((t["end"] - t["start"]).days + 1) / total_days) * 100
+                    top = 5 + lane_idx * 35
+
+                    # 背景バー（見た目）
+                    st.markdown(
+                        f'<div class="tl-bar" style="left:{left}%; width:{width}%; top:{top}px; background:{t["color"]};">'
+                        f'{html_mod.escape(t["title"])}</div>', 
+                        unsafe_allow_html=True
+                    )
+                    
+                    # 透明ボタン（実際のクリック判定）
+                    # ボタンの配置をバーに重ねる
+                    with st.container():
+                        st.markdown(f'<div class="button-container" style="left:{left}%; width:{width}%; top:{top}px; height:28px;">', unsafe_allow_html=True)
+                        if st.button(" ", key=f"btn_{t['id']}"):
+                            task_dialog(t["raw"])
+                        st.markdown('</div>', unsafe_allow_html=True)
+                
+                st.markdown('</div>', unsafe_allow_html=True)
