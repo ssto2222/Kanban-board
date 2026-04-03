@@ -186,6 +186,7 @@ def render_timeline(tasks: list[dict]) -> None:
             h.append(
                 f'<div class="tl-bar-outer"'
                 f' data-taskid="{task_id}"'
+                f' onclick="try{{new BroadcastChannel(\'kanban_tl\').postMessage(\'{task_id}\')}}catch(e){{}}"'
                 f' style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;">'
                 f'<div class="tl-bar-fill{ms_class}" style="background:{t["color"]};" title="{title_esc}">'
                 f'<div class="tl-bar-name">{title_esc}</div></div></div>'
@@ -195,28 +196,32 @@ def render_timeline(tasks: list[dict]) -> None:
     h.append('</div>')
     st.markdown("".join(h), unsafe_allow_html=True)
 
-    # ── 6. クリック検出 (window.parent.document へのリスナー付与) ────
+    # ── 6. クリック検出 ──────────────────────────────────────────────
     from components.dialog import task_dialog
 
     poll_key = f"tl_click_poll_{st.session_state.get('tl_poll_ver', 0)}"
     clicked_id = st_javascript("""
 await new Promise(resolve => {
+  let fired = false;
+  function done(id) { if (!fired) { fired = true; resolve(id); } }
+
+  // 方法1: BroadcastChannel (同一オリジン間で確実に動作)
+  try {
+    const bc = new BroadcastChannel('kanban_tl');
+    bc.onmessage = e => { bc.close(); done(e.data); };
+  } catch(e) {}
+
+  // 方法2: window.parent.document への直接リスナー (バックアップ)
   function setup() {
     try {
       const bars = window.parent.document.querySelectorAll('.tl-bar-outer[data-taskid]');
-      if (bars.length === 0) { setTimeout(setup, 300); return; }
-      let fired = false;
+      if (bars.length === 0) { setTimeout(setup, 400); return; }
       bars.forEach(bar => {
-        if (bar._tl_handler) bar.removeEventListener('click', bar._tl_handler);
-        bar._tl_handler = () => {
-          if (!fired) {
-            fired = true;
-            resolve(bar.getAttribute('data-taskid'));
-          }
-        };
-        bar.addEventListener('click', bar._tl_handler);
+        if (bar._tl_h) bar.removeEventListener('click', bar._tl_h);
+        bar._tl_h = () => done(bar.getAttribute('data-taskid'));
+        bar.addEventListener('click', bar._tl_h);
       });
-    } catch(e) { setTimeout(setup, 500); }
+    } catch(e) {}
   }
   setup();
 })
