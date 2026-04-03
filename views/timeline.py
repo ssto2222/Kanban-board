@@ -3,8 +3,9 @@ import html as html_mod
 from datetime import datetime, timedelta
 import streamlit as st
 from streamlit_javascript import st_javascript
-from config import COL_META
-from utils.helpers import get_priority_color, parse_dt, JST
+from config import COL_META, JST
+from utils.helpers import get_priority_color, parse_dt
+from components.dialog import task_dialog
 
 # ── CSS ──────────────────────────────────────────────────────────────────
 _CSS = """
@@ -22,7 +23,7 @@ _CSS = """
 .tl-gridline { position: absolute; top: 0; bottom: 0; width: 1px; background: #2a2a4a; z-index: 0; }
 .tl-today-line { position: absolute; top: 0; bottom: 0; width: 2px; background: #e94560; z-index: 10; box-shadow: 0 0 4px #e94560; }
 .tl-bar-outer { position: absolute; height: 24px; z-index: 2; cursor: pointer; transition: transform 0.2s; }
-.tl-bar-outer:hover { transform: scaleY(1.1); z-index: 5; }
+.tl-bar-outer:hover { transform: scaleY(1.1); z-index: 5; opacity: 0.9; }
 .tl-bar-fill { width: 100%; height: 100%; border-radius: 12px; box-shadow: 1px 2px 5px rgba(0,0,0,0.5); border: 1px solid rgba(255,255,255,0.2); box-sizing: border-box; overflow: hidden; display: flex; align-items: center; padding: 0 10px; }
 .tl-bar-ms { border: 2px solid #ffffff !important; box-shadow: 0 0 8px rgba(255,255,255,0.5); }
 .tl-bar-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 11px; font-weight: bold; color: #fff; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000, 0 1px 4px rgba(0,0,0,0.8); pointer-events: none; width: 100%; }
@@ -32,9 +33,17 @@ _CSS = """
 def _get_wd(dt: datetime) -> str:
     return ["月", "火", "水", "木", "金", "土", "日"][dt.weekday()]
 
+def _get_group_label(task: dict, mode: str) -> str:
+    if mode == "担当者": return task.get("assignee") or "（未設定）"
+    return COL_META.get(task.get("column", "todo"), {}).get("label", "不明")
+
 def render_timeline(tasks: list[dict]) -> None:
     st.markdown("## 📅 タイムライン (未完了のみ)")
     st.markdown(_CSS, unsafe_allow_html=True)
+
+    # セッション状態の初期化
+    if 'tl_ver' not in st.session_state: st.session_state['tl_ver'] = 0
+    if 'editing_task_id' not in st.session_state: st.session_state['editing_task_id'] = None
 
     today = datetime.now(JST).replace(hour=0, minute=0, second=0, microsecond=0)
 
@@ -50,7 +59,7 @@ def render_timeline(tasks: list[dict]) -> None:
             key="tl_scale"
         )
 
-    # ── 2. 表示範囲と横幅・グリッド間隔の決定 ──────────────────
+    # ── 2. 表示範囲と横幅の決定 ──────────────────
     if "日次" in view_mode:
         days_back, days_fwd, interval = 3, 11, timedelta(days=1)
         chart_min_width = 1000
@@ -91,8 +100,7 @@ def render_timeline(tasks: list[dict]) -> None:
             try:
                 d_dt = datetime.strptime(deadline_str, "%Y-%m-%d").replace(tzinfo=JST)
                 s, e = d_dt - timedelta(days=1), d_dt
-            except Exception:
-                continue
+            except: continue
 
         if not s: continue
         if s and not e: e = s + timedelta(hours=23)
@@ -101,10 +109,10 @@ def render_timeline(tasks: list[dict]) -> None:
         display_color = get_priority_color(deadline_str, t.get("color", "#FFD166"), column=status)
 
         processed_rows.append({
-            "id":    task_id,
+            "id": task_id,
             "title": title,
             "start": max(s, chart_min),
-            "end":   min(e, chart_max),
+            "end": min(e, chart_max),
             "group": _get_group_label(t, group_by),
             "color": display_color,
             "is_ms": is_ms,
@@ -120,20 +128,15 @@ def render_timeline(tasks: list[dict]) -> None:
         if 0 <= p <= 100:
             wd = _get_wd(curr)
             label = ""
-
-            if "日次" in view_mode:
-                label = f"{curr.strftime('%m/%d')}<br>({wd})"
+            if "日次" in view_mode: label = f"{curr.strftime('%m/%d')}<br>({wd})"
             elif "週次" in view_mode:
                 if curr.weekday() == 0: label = f"{curr.strftime('%m/%d')}"
             elif "月次" in view_mode:
-                if curr.day <= 3 or (14 <= curr.day <= 17):
-                    if curr.day == 1 or curr.day == 15 or (curr.day > 1 and (curr-interval).month != curr.month):
-                        label = f"<b>{curr.strftime('%m/%d')}</b>"
+                if curr.day == 1 or curr.day == 15: label = f"<b>{curr.strftime('%m/%d')}</b>"
             else:
                 if curr.month != last_month:
-                    label = f"<span style='color:#fff; font-size:11px;'>{curr.strftime('%Y/%m')}</span>"
+                    label = f"<span style='color:#fff;'>{curr.strftime('%Y/%m')}</span>"
                     last_month = curr.month
-
             ticks.append((p, label, curr.weekday()))
         curr += interval
 
@@ -160,8 +163,7 @@ def render_timeline(tasks: list[dict]) -> None:
             if lane_idx == -1:
                 lanes.append(t["end"])
                 lane_idx = len(lanes) - 1
-            else:
-                lanes[lane_idx] = t["end"]
+            else: lanes[lane_idx] = t["end"]
             task_layout.append((t, lane_idx))
 
         row_h = max(ROW_PADDING * 2 + len(lanes) * (BAR_HEIGHT + BAR_MARGIN), 60)
@@ -181,13 +183,11 @@ def render_timeline(tasks: list[dict]) -> None:
             top = ROW_PADDING + lane_idx * (BAR_HEIGHT + BAR_MARGIN)
             title_esc = html_mod.escape(t["title"])
             ms_class = " tl-bar-ms" if t.get("is_ms") else ""
-            task_id = t["id"]
-
+            
+            # BroadcastChannelを使ってクリックされたIDを飛ばす
             h.append(
-                f'<div class="tl-bar-outer"'
-                f' data-taskid="{task_id}"'
-                f' onclick="try{{new BroadcastChannel(\'kanban_tl\').postMessage(\'{task_id}\')}}catch(e){{}}"'
-                f' style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;">'
+                f'<div class="tl-bar-outer" style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;" '
+                f'onclick="new BroadcastChannel(\'kanban_tl\').postMessage(\'{t["id"]}\')">'
                 f'<div class="tl-bar-fill{ms_class}" style="background:{t["color"]};" title="{title_esc}">'
                 f'<div class="tl-bar-name">{title_esc}</div></div></div>'
             )
@@ -196,49 +196,36 @@ def render_timeline(tasks: list[dict]) -> None:
     h.append('</div>')
     st.markdown("".join(h), unsafe_allow_html=True)
 
-    # ── 6. クリック検出 ──────────────────────────────────────────────
-    from components.dialog import task_dialog
-
-    poll_key = f"tl_click_poll_{st.session_state.get('tl_poll_ver', 0)}"
+    # ── 6. クリック検出 (JavaScript) ──────────────────────────────────
+    # JSでメッセージを待ち受け、Python側に値を返す
     clicked_id = st_javascript("""
-await new Promise(resolve => {
-  let fired = false;
-  function done(id) { if (!fired) { fired = true; resolve(id); } }
+        (async () => {
+            const bc = new BroadcastChannel('kanban_tl');
+            return await new Promise(resolve => {
+                bc.onmessage = (e) => {
+                    bc.close();
+                    resolve(e.data);
+                };
+                // 30秒タイムアウト（リフレッシュ用）
+                setTimeout(() => resolve(null), 30000);
+            });
+        })()
+    """, key=f"tl_js_poll_{st.session_state['tl_ver']}")
 
-  // 方法1: BroadcastChannel (同一オリジン間で確実に動作)
-  try {
-    const bc = new BroadcastChannel('kanban_tl');
-    bc.onmessage = e => { bc.close(); done(e.data); };
-  } catch(e) {}
-
-  // 方法2: window.parent.document への直接リスナー (バックアップ)
-  function setup() {
-    try {
-      const bars = window.parent.document.querySelectorAll('.tl-bar-outer[data-taskid]');
-      if (bars.length === 0) { setTimeout(setup, 400); return; }
-      bars.forEach(bar => {
-        if (bar._tl_h) bar.removeEventListener('click', bar._tl_h);
-        bar._tl_h = () => done(bar.getAttribute('data-taskid'));
-        bar.addEventListener('click', bar._tl_h);
-      });
-    } catch(e) {}
-  }
-  setup();
-})
-""", key=poll_key)
-
-    # ── 7. Python 側クリック処理 ───────────────────────────────────
+    # ── 7. Python 側での編集ダイアログ起動 ───────────────────────────
+    # JSからIDが戻ってきた場合
     if clicked_id and isinstance(clicked_id, str) and clicked_id in task_lookup:
-        st.session_state['tl_poll_ver'] = st.session_state.get('tl_poll_ver', 0) + 1
-        st.session_state[f"_open_dialog_{clicked_id}"] = True
+        st.session_state['editing_task_id'] = clicked_id
+        st.session_state['tl_ver'] += 1 # JSコンポーネントをリセット
         st.rerun()
 
-    for tid, orig_task in task_lookup.items():
-        if st.session_state.pop(f"_open_dialog_{tid}", False):
-            task_dialog(orig_task)
-            break
-
-
-def _get_group_label(task: dict, mode: str) -> str:
-    if mode == "担当者": return task.get("assignee") or "（未設定）"
-    return COL_META.get(task.get("column", "todo"), {}).get("label", "不明")
+    # セッションに保持されたIDがあればダイアログを表示
+    if st.session_state.get('editing_task_id'):
+        target_id = st.session_state['editing_task_id']
+        if target_id in task_lookup:
+            # ダイアログ表示
+            task_dialog(task_lookup[target_id])
+            
+            # ダイアログの外をクリックしたり閉じたりした時のためにクリア
+            # (注意: task_dialog内での保存・削除後に rerun される想定)
+            st.session_state['editing_task_id'] = None
