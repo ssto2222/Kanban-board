@@ -34,7 +34,14 @@ def render_assignee(tasks: list[dict]) -> None:
         
         # ヘッダー (省略)
         st.markdown(f"### {html_escape(name)}")
-
+        # カラムヘッダー
+        st.markdown(
+            f'''<div class="col-hdr" style="background:{col_def["bg"]}">
+            <span>{col_def["label"]}</span>
+            <span class="badge">{len(col_tasks)}</span>
+            </div>''',
+                unsafe_allow_html=True,
+            )
         sub_cols = st.columns(len(COLUMNS), gap="medium")
         for i, col_def in enumerate(COLUMNS):
             with sub_cols[i]:
