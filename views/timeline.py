@@ -185,7 +185,7 @@ def render_timeline(tasks: list[dict]) -> None:
 
             h.append(
                 f'<div class="tl-bar-outer"'
-                f' onclick="localStorage.setItem(\'kanban_tl_click\',\'{task_id}\')"'
+                f' data-taskid="{task_id}"'
                 f' style="left:{left:.2f}%; width:{width:.2f}%; top:{top}px;">'
                 f'<div class="tl-bar-fill{ms_class}" style="background:{t["color"]};" title="{title_esc}">'
                 f'<div class="tl-bar-name">{title_esc}</div></div></div>'
@@ -195,21 +195,30 @@ def render_timeline(tasks: list[dict]) -> None:
     h.append('</div>')
     st.markdown("".join(h), unsafe_allow_html=True)
 
-    # ── 6. クリック検出 (localStorage ポーリング) ──────────────────
+    # ── 6. クリック検出 (window.parent.document へのリスナー付与) ────
     from components.dialog import task_dialog
 
     poll_key = f"tl_click_poll_{st.session_state.get('tl_poll_ver', 0)}"
     clicked_id = st_javascript("""
 await new Promise(resolve => {
-  if (window._tl_poll) clearInterval(window._tl_poll);
-  window._tl_poll = setInterval(() => {
-    const v = localStorage.getItem('kanban_tl_click');
-    if (v) {
-      clearInterval(window._tl_poll);
-      localStorage.removeItem('kanban_tl_click');
-      resolve(v);
-    }
-  }, 200);
+  function setup() {
+    try {
+      const bars = window.parent.document.querySelectorAll('.tl-bar-outer[data-taskid]');
+      if (bars.length === 0) { setTimeout(setup, 300); return; }
+      let fired = false;
+      bars.forEach(bar => {
+        if (bar._tl_handler) bar.removeEventListener('click', bar._tl_handler);
+        bar._tl_handler = () => {
+          if (!fired) {
+            fired = true;
+            resolve(bar.getAttribute('data-taskid'));
+          }
+        };
+        bar.addEventListener('click', bar._tl_handler);
+      });
+    } catch(e) { setTimeout(setup, 500); }
+  }
+  setup();
 })
 """, key=poll_key)
 
