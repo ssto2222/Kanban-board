@@ -5,9 +5,9 @@ from components.card import render_card
 def render_kanban(tasks: list[dict]) -> None:
     """
     カンバンボードビュー（Todo / Doing / Done の 3列表示）。
-    - 各列5件まで表示し、それ以上はボタンで展開。
+    - 各列3件まで表示し、それ以上はボタンで展開。
     """
-    MAX_DISPLAY = 5
+    MAX_DISPLAY = 3
 
     # 保存・更新後のトーストメッセージ表示
     if st.session_state.get("_toast"):
