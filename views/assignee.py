@@ -10,7 +10,7 @@ def html_escape(s: str) -> str:
 
 def render_assignee(tasks: list[dict]) -> None:
     UNASSIGNED = "👤 未設定 / 全体共通"
-    MAX_DISPLAY = 5
+    MAX_DISPLAY = 3
 
     if not tasks:
         st.info("タスクが登録されていません。")
