@@ -14,6 +14,8 @@ const COL_META = {
   done: { label: '✅ 完了',   bg: '#1a6b3c' },
 };
 
+const UNASSIGNED = '（未割り当て）';  // 担当者なしの表示ラベル
+
 let tasks = [];
 let draggedId = null;
 let editingTask = null;
@@ -212,7 +214,7 @@ function createCard(task, draggable = false) {
     card.addEventListener('dragend', () => {
       card.classList.remove('dragging');
       draggedId = null;
-      document.querySelectorAll('.column').forEach(c => c.classList.remove('highlight'));
+      document.querySelectorAll('.column, .assignee-cards').forEach(c => c.classList.remove('highlight'));
     });
   }
 
@@ -265,7 +267,6 @@ function renderAssignee() {
     ? tasks.filter(t => t.title.toLowerCase().includes(q) || (t.assignee || '').toLowerCase().includes(q))
     : tasks;
 
-  const UNASSIGNED = '（未割り当て）';
   const groups = {};
   for (const t of filtered) {
     const key = t.assignee || UNASSIGNED;
@@ -290,37 +291,93 @@ function renderAssignee() {
     const section = document.createElement('div');
     section.className = 'assignee-section';
 
-    const icon = name === UNASSIGNED ? '❓' : '👤';
-    section.innerHTML = `
-      <div class="assignee-hdr">
-        <span>${icon}&nbsp;${esc(name)}</span>
-        <span class="assignee-count">
-          計&nbsp;${memberTasks.length}&nbsp;件&nbsp;｜&nbsp;
-          待機&nbsp;${counts.todo}&nbsp;
-          進行&nbsp;${counts.wip}&nbsp;
-          完了&nbsp;${counts.done}
-        </span>
-      </div>
-      <div class="assignee-cols">
-        ${['todo', 'wip', 'done'].map(col => `
-          <div class="assignee-col">
-            <div class="status-label">${COL_META[col].label} (${counts[col] || 0})</div>
-            <div class="assignee-cards" id="ac-${esc(name)}-${col}"></div>
-          </div>
-        `).join('')}
-      </div>
-      <hr class="divider-line">
-    `;
+    // ── ヘッダー ──
+    const hdr = document.createElement('div');
+    hdr.className = 'assignee-hdr';
+    hdr.innerHTML = `
+      <span>${name === UNASSIGNED ? '❓' : '👤'}&nbsp;${esc(name)}</span>
+      <span class="assignee-count">
+        計&nbsp;${memberTasks.length}&nbsp;件&nbsp;｜&nbsp;
+        待機&nbsp;${counts.todo}&nbsp;
+        進行&nbsp;${counts.wip}&nbsp;
+        完了&nbsp;${counts.done}
+      </span>`;
+    section.appendChild(hdr);
 
-    container.appendChild(section);
+    // ── 3ステータス列（ドロップゾーンつき） ──
+    const colsDiv = document.createElement('div');
+    colsDiv.className = 'assignee-cols';
 
     for (const col of ['todo', 'wip', 'done']) {
-      const cardContainer = section.querySelector(`[id="ac-${esc(name)}-${col}"]`);
+      const colDiv = document.createElement('div');
+      colDiv.className = 'assignee-col';
+
+      const lbl = document.createElement('div');
+      lbl.className = 'status-label';
+      lbl.textContent = `${COL_META[col].label} (${counts[col] || 0})`;
+      colDiv.appendChild(lbl);
+
+      const cardsDiv = document.createElement('div');
+      cardsDiv.className = 'assignee-cards';
+      cardsDiv.dataset.assignee = name;   // UNASSIGNED 文字列もそのまま格納
+      cardsDiv.dataset.col      = col;
+
+      // ドロップゾーンイベント
+      cardsDiv.addEventListener('dragover', (e) => {
+        e.preventDefault();
+        cardsDiv.classList.add('highlight');
+      });
+      cardsDiv.addEventListener('dragleave', (e) => {
+        if (!cardsDiv.contains(e.relatedTarget)) cardsDiv.classList.remove('highlight');
+      });
+      cardsDiv.addEventListener('drop', (e) => handleAssigneeDrop(e, cardsDiv));
+
+      // カードを追加（ドラッグ有効）
       for (const task of memberTasks.filter(t => t.column === col)) {
-        cardContainer.appendChild(createCard(task, false));
+        cardsDiv.appendChild(createCard(task, true));
       }
+
+      colDiv.appendChild(cardsDiv);
+      colsDiv.appendChild(colDiv);
     }
+
+    section.appendChild(colsDiv);
+
+    const hr = document.createElement('hr');
+    hr.className = 'divider-line';
+    section.appendChild(hr);
+
+    container.appendChild(section);
   }
+}
+
+async function handleAssigneeDrop(e, target) {
+  e.preventDefault();
+  document.querySelectorAll('.assignee-cards').forEach(c => c.classList.remove('highlight'));
+
+  if (!draggedId) return;
+  const task = tasks.find(t => t.id === draggedId);
+  if (!task) { draggedId = null; return; }
+
+  // UNASSIGNED ラベルは DB 上は空文字として扱う
+  const newAssignee = target.dataset.assignee === UNASSIGNED ? '' : target.dataset.assignee;
+  const newCol      = target.dataset.col;
+
+  if ((task.assignee || '') === newAssignee && task.column === newCol) {
+    draggedId = null;
+    return;
+  }
+
+  // 変更フィールドのみ更新
+  const updates = {};
+  if (task.column !== newCol)                updates.column   = newCol;
+  if ((task.assignee || '') !== newAssignee) updates.assignee = newAssignee;
+
+  Object.assign(task, updates);
+  draggedId = null;
+
+  renderAssignee();            // 楽観的 UI 更新
+  await apiPut(task.id, updates);  // DB 書き込み
 }
 
 // ── タイムラインビュー ────────────────────────────────────────────────────────
