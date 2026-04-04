@@ -31,6 +31,9 @@ document.addEventListener('DOMContentLoaded', () => {
 function buildSwatches(containerId, inputId) {
   const container = document.getElementById(containerId);
   if (!container) return;
+  // スウォッチをまとめるラッパー
+  const wrapper = document.createElement('div');
+  wrapper.className = 'color-swatches';
   for (const c of STICKY_COLORS) {
     const sw = document.createElement('span');
     sw.className = 'swatch';
@@ -39,8 +42,9 @@ function buildSwatches(containerId, inputId) {
     sw.addEventListener('click', () => {
       document.getElementById(inputId).value = c;
     });
-    container.appendChild(sw);
+    wrapper.appendChild(sw);
   }
+  container.appendChild(wrapper);
 }
 
 function bindEvents() {
@@ -389,6 +393,10 @@ function renderTimeline() {
   }
 
   // HTML 構築
+  const LANE_H  = 36;  // 1タスクあたりの行高さ(px)
+  const BAR_H   = 22;  // バーの高さ(px)
+  const BAR_PAD = (LANE_H - BAR_H) / 2;  // レーン内の上余白
+
   let h = '<div class="tl-wrap">';
 
   // 軸行
@@ -398,12 +406,15 @@ function renderTimeline() {
   }
   h += '</div></div>';
 
-  // データ行
+  // データ行（グループごとにレーン数分の高さを確保して重なりを防止）
   const todayPct = getPct(today);
   for (const grp of Object.keys(groupMap).sort()) {
-    h += '<div class="tl-row">';
-    h += `<div class="tl-group-name">${esc(grp)}</div>`;
-    h += '<div class="tl-chart-area">';
+    const bars  = groupMap[grp];
+    const rowH  = bars.length * LANE_H + 8;  // 上下余白 4px ずつ
+
+    h += `<div class="tl-row" style="height:${rowH}px">`;
+    h += `<div class="tl-group-name" style="height:${rowH}px">${esc(grp)}</div>`;
+    h += `<div class="tl-chart-area" style="height:${rowH}px">`;
 
     for (const { p } of ticks) {
       h += `<div class="tl-gridline" style="left:${p.toFixed(2)}%"></div>`;
@@ -411,14 +422,18 @@ function renderTimeline() {
     if (todayPct >= 0 && todayPct <= 100) {
       h += `<div class="tl-today-line" style="left:${todayPct.toFixed(2)}%"></div>`;
     }
-    for (const r of groupMap[grp]) {
-      const left  = getPct(r.start);
-      const width = Math.max(getPct(r.end) - left, 1.0);
-      h += `<div class="tl-bar-outer" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%">`;
-      h += `<div class="tl-bar-name">${esc(r.title)}</div>`;
-      h += `<div class="tl-bar-fill" style="background:${r.color}"></div>`;
-      h += '</div>';
-    }
+
+    // 各バーを専用レーンに配置（インデックス順に縦に並べる）
+    bars.forEach((r, i) => {
+      const barTop = 4 + i * LANE_H + BAR_PAD;
+      const left   = getPct(r.start);
+      const width  = Math.max(getPct(r.end) - left, 1.5);
+      h += `<div class="tl-bar-outer" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;top:${barTop}px;height:${BAR_H}px">`;
+      h += `<div class="tl-bar-fill" style="background:${r.color}">`;
+      h += `<span class="tl-bar-name">${esc(r.title)}</span>`;
+      h += '</div></div>';
+    });
+
     h += '</div></div>';
   }
   h += '</div>';
