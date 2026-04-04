@@ -17,9 +17,14 @@ const COL_META = {
 const UNASSIGNED = '（未割り当て）';  // 担当者なしの表示ラベル
 
 let tasks = [];
-let draggedId = null;
+let draggedId  = null;
 let editingTask = null;
 let currentView = 'kanban';
+
+// タイムラインのドラッグ操作用モジュール変数
+let tlMinDt   = null;   // 現在の表示ウィンドウ開始日時
+let tlTotalMs = null;   // 表示ウィンドウの総ミリ秒
+let tlDrag    = null;   // ドラッグ中の状態オブジェクト
 
 // ── 初期化 ────────────────────────────────────────────────────────────────────
 
@@ -97,6 +102,11 @@ function bindEvents() {
     r.addEventListener('change', renderTimeline);
   });
   document.getElementById('tl-span').addEventListener('change', renderTimeline);
+
+  // タイムラインのバーのドラッグ・リサイズ（イベント委譲）
+  document.getElementById('timeline-content').addEventListener('pointerdown', onTlPointerDown);
+  document.addEventListener('pointermove', onTlPointerMove);
+  document.addEventListener('pointerup',   onTlPointerUp);
 
   // 新規タスクフォーム
   document.getElementById('nt-is-milestone').addEventListener('change', toggleMilestone);
@@ -405,7 +415,7 @@ function renderTimeline() {
       ? (t.assignee || '未設定')
       : (COL_META[t.column]?.label || '不明');
 
-    rows.push({ title: t.title, start, end, group, color: getPriorityColor(t.deadline, t.color) });
+    rows.push({ id: t.id, title: t.title, start, end, group, color: getPriorityColor(t.deadline, t.color) });
   }
 
   const container = document.getElementById('timeline-content');
@@ -428,6 +438,10 @@ function renderTimeline() {
   const maxDt   = new Date(today.getTime() + cfg.after  * DAY);
   const totalMs = maxDt - minDt;
   const getPct  = dt => (dt - minDt) / totalMs * 100;
+
+  // ドラッグハンドラから参照できるようモジュール変数を更新
+  tlMinDt   = minDt;
+  tlTotalMs = totalMs;
 
   // ── 目盛り生成（ウィンドウ内のみ） ──
   const WD    = ['月','火','水','木','金','土','日'];
@@ -494,10 +508,17 @@ function renderTimeline() {
       const barTop = 4 + i * LANE_H + BAR_PAD;
       const left   = getPct(r.start);
       const width  = Math.max(getPct(r.end) - left, 1.5);
-      h += `<div class="tl-bar-outer" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;top:${barTop}px;height:${BAR_H}px">`;
+      h += `<div class="tl-bar-outer" data-id="${esc(r.id)}"`;
+      h += ` style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;top:${barTop}px;height:${BAR_H}px">`;
+      // 左リサイズハンドル
+      h += '<div class="tl-resize-handle tl-handle-left" title="開始日を変更"></div>';
+      // バー本体（タイトル表示）
       h += `<div class="tl-bar-fill" style="background:${r.color}">`;
       h += `<span class="tl-bar-name">${esc(r.title)}</span>`;
-      h += '</div></div>';
+      h += '</div>';
+      // 右リサイズハンドル
+      h += '<div class="tl-resize-handle tl-handle-right" title="終了日を変更"></div>';
+      h += '</div>';
     });
 
     h += '</div></div>';
@@ -587,6 +608,8 @@ function openEditModal(task) {
   document.getElementById('task-note').value              = task.note      || '';
   document.getElementById('task-color').value             = task.color     || '#FFD166';
   document.getElementById('task-column').value            = task.column    || 'todo';
+  document.getElementById('task-started-at').value        = fmtDatetimeLocal(task.started_at);
+  document.getElementById('task-finished-at').value       = fmtDatetimeLocal(task.finished_at);
   document.getElementById('btn-delete').style.display     = 'inline-block';
   showModal();
 }
@@ -611,11 +634,13 @@ async function saveTask() {
 
   const data = {
     title,
-    assignee: document.getElementById('task-assignee').value.trim(),
-    deadline: document.getElementById('task-deadline').value,
-    note:     document.getElementById('task-note').value.trim(),
-    color:    document.getElementById('task-color').value,
-    column:   document.getElementById('task-column').value,
+    assignee:    document.getElementById('task-assignee').value.trim(),
+    deadline:    document.getElementById('task-deadline').value,
+    note:        document.getElementById('task-note').value.trim(),
+    color:       document.getElementById('task-color').value,
+    column:      document.getElementById('task-column').value,
+    started_at:  document.getElementById('task-started-at').value  || '',
+    finished_at: document.getElementById('task-finished-at').value || '',
   };
 
   if (editingTask) {
@@ -637,6 +662,127 @@ async function deleteTask() {
   closeModal();
 
   await apiDelete(id);
+}
+
+// ── タイムライン インタラクション ─────────────────────────────────────────────
+
+function getTaskTimeBounds(task) {
+  let start = task.started_at  ? new Date(task.started_at)  : null;
+  let end   = task.finished_at ? new Date(task.finished_at) : null;
+  const dl  = task.deadline    ? new Date(task.deadline)    : null;
+  if (!start && !dl) return null;
+  if (!start) { start = new Date(dl); start.setDate(start.getDate() - 7); }
+  if (!end)   { end   = new Date(start); end.setHours(end.getHours() + 23); }
+  return { start, end };
+}
+
+/** パーセント位置を日付の区切り(0時)に変換 */
+function tlPctToDay(pct) {
+  const d = new Date(tlMinDt.getTime() + (pct / 100) * tlTotalMs);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** ISO日時文字列を datetime-local input 用の "YYYY-MM-DDTHH:MM" に変換（ローカル時刻） */
+function fmtDatetimeLocal(isoStr) {
+  if (!isoStr) return '';
+  const d = new Date(isoStr);
+  if (isNaN(d)) return '';
+  const p = n => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth()+1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`;
+}
+
+function onTlPointerDown(e) {
+  const bar = e.target.closest('.tl-bar-outer');
+  if (!bar || !tlMinDt) return;
+
+  const taskId = bar.dataset.id;
+  const task   = tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  const chartArea     = bar.closest('.tl-chart-area');
+  const isHandleLeft  = e.target.classList.contains('tl-handle-left');
+  const isHandleRight = e.target.classList.contains('tl-handle-right');
+  const type = isHandleLeft ? 'resize-left' : isHandleRight ? 'resize-right' : 'move';
+
+  tlDrag = {
+    type,
+    taskId,
+    bar,
+    chartArea,
+    startX:    e.clientX,
+    origLeft:  parseFloat(bar.style.left),
+    origWidth: parseFloat(bar.style.width),
+    moved:     false,
+  };
+
+  e.preventDefault();
+  bar.setPointerCapture(e.pointerId);
+  bar.style.opacity = '0.75';
+}
+
+function onTlPointerMove(e) {
+  if (!tlDrag) return;
+
+  const rect     = tlDrag.chartArea.getBoundingClientRect();
+  const deltaX   = e.clientX - tlDrag.startX;
+  const deltaPct = (deltaX / rect.width) * 100;
+
+  if (Math.abs(deltaX) > 3) tlDrag.moved = true;
+  if (!tlDrag.moved) return;
+
+  const MIN_W = 0.3;  // バーの最小幅 (%)
+
+  if (tlDrag.type === 'move') {
+    const newLeft = Math.max(-5, Math.min(tlDrag.origLeft + deltaPct, 105 - tlDrag.origWidth));
+    tlDrag.bar.style.left = `${newLeft.toFixed(2)}%`;
+
+  } else if (tlDrag.type === 'resize-left') {
+    const newWidth = tlDrag.origWidth - deltaPct;
+    if (newWidth >= MIN_W) {
+      tlDrag.bar.style.left  = `${(tlDrag.origLeft + deltaPct).toFixed(2)}%`;
+      tlDrag.bar.style.width = `${newWidth.toFixed(2)}%`;
+    }
+
+  } else if (tlDrag.type === 'resize-right') {
+    const newWidth = Math.max(MIN_W, tlDrag.origWidth + deltaPct);
+    tlDrag.bar.style.width = `${newWidth.toFixed(2)}%`;
+  }
+}
+
+async function onTlPointerUp(e) {
+  if (!tlDrag) return;
+
+  const { type, taskId, bar, moved } = tlDrag;
+  bar.style.opacity = '';
+  tlDrag = null;
+
+  const task = tasks.find(t => t.id === taskId);
+  if (!task) return;
+
+  if (!moved) {
+    // クリック → 編集モーダルを開く
+    openEditModal(task);
+    return;
+  }
+
+  // ドラッグ確定: バーの現在位置から日付を逆算して保存
+  const finalLeft  = parseFloat(bar.style.left);
+  const finalWidth = parseFloat(bar.style.width);
+  const newStart   = tlPctToDay(finalLeft);
+  const newEnd     = tlPctToDay(finalLeft + finalWidth);
+
+  // 最低1日は確保
+  if (newEnd <= newStart) newEnd.setDate(newStart.getDate() + 1);
+
+  const updates = {
+    started_at:  newStart.toISOString(),
+    finished_at: newEnd.toISOString(),
+  };
+
+  Object.assign(task, updates);
+  renderTimeline();
+  await apiPut(taskId, updates);
 }
 
 // ── ヘルパー ──────────────────────────────────────────────────────────────────
