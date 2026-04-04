@@ -228,11 +228,13 @@ body {
 }
 
 .card.dragging {
-  opacity: 0.35;
+  opacity: 0.3;
   cursor: grabbing;
 }
 
-[draggable="true"].card { cursor: grab; }
+.card[data-draggable].dragging { cursor: grabbing; }
+
+.card[data-draggable] { cursor: grab; }
 
 .card-top {
   display: flex;
@@ -609,4 +611,233 @@ details[open] .period-toggle { color: var(--text); }
 .modal-btns-right {
   display: flex;
   gap: 8px;
+}
+
+/* ── ドラッグゴースト ── */
+.card-ghost {
+  position: fixed !important;
+  pointer-events: none !important;
+  z-index: 9999 !important;
+  opacity: 0.82;
+  transform: rotate(2deg) scale(1.05) !important;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
+  transition: none !important;
+}
+
+/* ── タッチドラッグ: touch-action をカード単位で無効化 ── */
+.card[data-draggable] { touch-action: none; }
+
+/* ── サイドバー背景オーバーレイ (モバイル) ── */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.52);
+  z-index: 199;
+}
+.sidebar-backdrop.open { display: block; }
+
+/* ── トップバー / ハンバーガー (デスクトップでは非表示) ── */
+.topbar      { display: none; }
+.hamburger   { display: none; }
+.sidebar-close { display: none; }
+
+/* ═══════════════════════════════════════════════════════════════
+   レスポンシブ: タブレット・スマートフォン (≤ 768px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  body { overflow: auto; }
+
+  .app {
+    flex-direction: column;
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
+  /* ── トップバー ── */
+  .topbar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 14px;
+    height: 52px;
+    background: var(--panel);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .hamburger {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 22px;
+    cursor: pointer;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 6px;
+  }
+
+  .hamburger:hover { background: #1c2645; }
+
+  .topbar-title {
+    font-size: 16px;
+    font-weight: bold;
+  }
+
+  /* ── サイドバー: スライドインドロワー ── */
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: -270px;
+    width: 250px !important;
+    min-width: 250px !important;
+    height: 100%;
+    z-index: 200;
+    transition: left 0.25s ease;
+    overflow-y: auto;
+    padding-top: 52px;
+    box-shadow: none;
+  }
+
+  .sidebar.open { left: 0 !important; box-shadow: 4px 0 24px rgba(0,0,0,0.6); }
+
+  .sidebar-close {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: absolute;
+    top: 10px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-size: 20px;
+    cursor: pointer;
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 6px;
+  }
+
+  .sidebar-close:hover { background: #1c2645; }
+
+  /* ── メインコンテンツ ── */
+  .main-content {
+    height: auto;
+    overflow: visible;
+  }
+
+  .view {
+    height: auto;
+    overflow: visible;
+    min-height: calc(100dvh - 52px);
+  }
+
+  .view-scroll {
+    overflow-y: visible;
+    padding: 12px 14px;
+  }
+
+  .view-header {
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  /* ── カンバンボード: 横スクロール ── */
+  #view-kanban .board {
+    overflow-x: auto;
+    overflow-y: visible;
+    padding: 8px;
+    align-items: flex-start;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .column {
+    min-width: 240px;
+    flex-shrink: 0;
+  }
+
+  .cards {
+    overflow-y: visible;
+    max-height: none;
+  }
+
+  /* ── 担当者別: カラム縦積み ── */
+  .assignee-cols { flex-direction: column; }
+
+  /* ── タイムライン ── */
+  .tl-group-col,
+  .tl-group-name { width: 100px !important; min-width: 100px !important; }
+
+  .tl-resize-handle { width: 16px; }
+
+  /* ── モーダル: フルスクリーン ── */
+  .overlay { align-items: flex-start; }
+
+  .modal {
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0 !important;
+    padding: 20px 16px;
+    overflow-y: auto;
+  }
+
+  /* ── ナビゲーション ── */
+  .nav-btn {
+    padding: 13px 12px;
+    font-size: 14px;
+    min-height: 44px;
+  }
+
+  /* ── ボタン ── */
+  .btn {
+    padding: 11px 16px;
+    min-height: 44px;
+    font-size: 14px;
+  }
+
+  /* ── カード編集ボタン ── */
+  .card-edit-btn {
+    font-size: 15px;
+    padding: 3px;
+    min-width: 30px;
+    min-height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  /* ── スウォッチ ── */
+  .swatch {
+    width: 34px;
+    height: 34px;
+  }
+
+  /* ── タイムラインコントロール ── */
+  .timeline-controls { gap: 10px; }
+
+  /* ── フォームの2列を縦積み ── */
+  .field-row {
+    flex-direction: column;
+    gap: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   小型スマートフォン (≤ 480px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 480px) {
+  .column { min-width: 200px; }
+  .tl-group-col,
+  .tl-group-name { width: 80px !important; min-width: 80px !important; }
+  .tl-wrap { min-width: 500px; }
 }

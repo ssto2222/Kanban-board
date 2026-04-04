@@ -21,6 +21,7 @@ let draggedId  = null;
 let editingTask = null;
 let currentView = 'kanban';
 let tlLastClick = null;  // タイムラインのダブルクリック検出用 { taskId, time }
+let cardDrag   = null;   // カードのPointer Events DnD用 { taskId, card, ghost, startX, startY, moved }
 
 // タイムラインのドラッグ操作用モジュール変数
 let tlMinDt   = null;   // 現在の表示ウィンドウ開始日時
@@ -56,10 +57,15 @@ function buildSwatches(containerId, inputId) {
 }
 
 function bindEvents() {
-  // ナビゲーション
+  // ナビゲーション（モバイルではサイドバーも閉じる）
   document.querySelectorAll('.nav-btn').forEach(btn => {
-    btn.addEventListener('click', () => switchView(btn.dataset.view));
+    btn.addEventListener('click', () => { switchView(btn.dataset.view); closeSidebar(); });
   });
+
+  // ハンバーガーメニュー（モバイル）
+  document.getElementById('hamburger')?.addEventListener('click', openSidebar);
+  document.getElementById('sidebar-close')?.addEventListener('click', closeSidebar);
+  document.getElementById('sidebar-backdrop')?.addEventListener('click', closeSidebar);
 
   // モーダルボタン
   document.getElementById('btn-cancel').addEventListener('click', closeModal);
@@ -85,18 +91,9 @@ function bindEvents() {
     else if (currentView === 'assignee') renderAssignee();
   });
 
-  // ドロップゾーン
-  for (const col of ['todo', 'wip', 'done']) {
-    const el = document.getElementById(`col-${col}`);
-    el.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      el.classList.add('highlight');
-    });
-    el.addEventListener('dragleave', (e) => {
-      if (!el.contains(e.relatedTarget)) el.classList.remove('highlight');
-    });
-    el.addEventListener('drop', (e) => handleDrop(e, col));
-  }
+  // カード DnD (Pointer Events — マウス・タッチ・ペン共通)
+  document.addEventListener('pointermove', onCardPointerMove);
+  document.addEventListener('pointerup',   onCardPointerUp);
 
   // タイムラインコントロール
   document.querySelectorAll('input[name="tl-group"]').forEach(r => {
@@ -204,7 +201,7 @@ function renderKanban() {
 function createCard(task, draggable = false) {
   const card = document.createElement('div');
   card.className = 'card';
-  card.draggable = draggable;
+  if (draggable) card.dataset.draggable = 'true';  // CSS touch-action: none のトリガーにも使用
   card.dataset.id = task.id;
 
   const displayColor = task.column === 'done'
@@ -228,16 +225,7 @@ function createCard(task, draggable = false) {
   `;
 
   if (draggable) {
-    card.addEventListener('dragstart', (e) => {
-      draggedId = task.id;
-      e.dataTransfer.effectAllowed = 'move';
-      setTimeout(() => card.classList.add('dragging'), 0);
-    });
-    card.addEventListener('dragend', () => {
-      card.classList.remove('dragging');
-      draggedId = null;
-      document.querySelectorAll('.column, .assignee-cards').forEach(c => c.classList.remove('highlight'));
-    });
+    card.addEventListener('pointerdown', (e) => onCardPointerDown(e, task, card));
   }
 
   card.querySelector('.card-edit-btn').addEventListener('click', (e) => {
@@ -279,19 +267,17 @@ function buildDeadlineHtml(deadline) {
 
 // ── ドラッグ＆ドロップ ────────────────────────────────────────────────────────
 
-async function handleDrop(e, targetCol) {
-  e.preventDefault();
+async function handleDrop(targetCol) {
   document.querySelectorAll('.column').forEach(c => c.classList.remove('highlight'));
 
   if (!draggedId) return;
   const task = tasks.find(t => t.id === draggedId);
-  if (!task || task.column === targetCol) return;
+  if (!task || task.column === targetCol) { draggedId = null; return; }
 
   task.column = targetCol;
-  renderKanban();
-
-  await apiPut(draggedId, task);
   draggedId = null;
+  renderKanban();
+  await apiPut(task.id, task);
 }
 
 // ── 担当者別ビュー ────────────────────────────────────────────────────────────
@@ -357,15 +343,7 @@ function renderAssignee() {
       cardsDiv.dataset.assignee = name;   // UNASSIGNED 文字列もそのまま格納
       cardsDiv.dataset.col      = col;
 
-      // ドロップゾーンイベント
-      cardsDiv.addEventListener('dragover', (e) => {
-        e.preventDefault();
-        cardsDiv.classList.add('highlight');
-      });
-      cardsDiv.addEventListener('dragleave', (e) => {
-        if (!cardsDiv.contains(e.relatedTarget)) cardsDiv.classList.remove('highlight');
-      });
-      cardsDiv.addEventListener('drop', (e) => handleAssigneeDrop(e, cardsDiv));
+      // ドロップゾーンのハイライトはPointer Events DnDで制御（HTML5 DnD不使用）
 
       // カードを追加（ドラッグ有効）
       for (const task of memberTasks.filter(t => t.column === col)) {
@@ -386,8 +364,7 @@ function renderAssignee() {
   }
 }
 
-async function handleAssigneeDrop(e, target) {
-  e.preventDefault();
+async function handleAssigneeDrop(target) {
   document.querySelectorAll('.assignee-cards').forEach(c => c.classList.remove('highlight'));
 
   if (!draggedId) return;
@@ -413,6 +390,112 @@ async function handleAssigneeDrop(e, target) {
 
   renderAssignee();            // 楽観的 UI 更新
   await apiPut(task.id, updates);  // DB 書き込み
+}
+
+// ── サイドバー開閉 (モバイル) ──────────────────────────────────────────────────
+
+function openSidebar() {
+  document.getElementById('sidebar').classList.add('open');
+  document.getElementById('sidebar-backdrop').classList.add('open');
+}
+
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('open');
+  document.getElementById('sidebar-backdrop').classList.remove('open');
+}
+
+// ── カード DnD (Pointer Events) ───────────────────────────────────────────────
+
+function onCardPointerDown(e, task, card) {
+  if (e.button === 2) return;                        // 右クリック除外
+  if (e.target.closest('.card-edit-btn')) return;   // 編集ボタンは除外
+
+  cardDrag = {
+    taskId: task.id,
+    card,
+    ghost: null,
+    startX: e.clientX,
+    startY: e.clientY,
+    moved: false,
+  };
+  // setPointerCapture でポインターが要素外に出ても追跡
+  card.setPointerCapture(e.pointerId);
+}
+
+function onCardPointerMove(e) {
+  if (!cardDrag) return;
+
+  const dx = e.clientX - cardDrag.startX;
+  const dy = e.clientY - cardDrag.startY;
+
+  if (!cardDrag.moved && Math.hypot(dx, dy) > 8) {
+    // ドラッグ開始
+    cardDrag.moved = true;
+    draggedId = cardDrag.taskId;
+    cardDrag.card.classList.add('dragging');
+
+    // ゴーストを生成
+    const ghost = cardDrag.card.cloneNode(true);
+    ghost.classList.add('card-ghost');
+    ghost.style.width = `${cardDrag.card.offsetWidth}px`;
+    // data-draggable を除いてポインターイベントが来ないようにする
+    ghost.removeAttribute('data-draggable');
+    document.body.appendChild(ghost);
+    cardDrag.ghost = ghost;
+  }
+
+  if (!cardDrag.moved) return;
+  if (e.cancelable) e.preventDefault();  // スクロール防止
+
+  // ゴーストを追従させる
+  const gh = cardDrag.ghost;
+  if (gh) {
+    gh.style.left = `${e.clientX - gh.offsetWidth / 2}px`;
+    gh.style.top  = `${e.clientY - gh.offsetHeight / 2}px`;
+
+    // ドロップ候補をハイライト
+    gh.style.visibility = 'hidden';
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    gh.style.visibility = '';
+
+    document.querySelectorAll('.column[data-col], .assignee-cards[data-col]')
+      .forEach(c => c.classList.remove('highlight'));
+    const tgt = el?.closest('.column[data-col]') ?? el?.closest('.assignee-cards[data-col]');
+    if (tgt) tgt.classList.add('highlight');
+  }
+}
+
+async function onCardPointerUp(e) {
+  if (!cardDrag) return;
+
+  const { card, ghost, moved } = cardDrag;
+  cardDrag = null;
+
+  card.classList.remove('dragging');
+  document.querySelectorAll('.column, .assignee-cards').forEach(c => c.classList.remove('highlight'));
+
+  if (!moved) {
+    if (ghost) ghost.remove();
+    draggedId = null;
+    return;
+  }
+
+  // ゴーストを隠してドロップ先を特定
+  let dropEl = null;
+  if (ghost) {
+    ghost.style.visibility = 'hidden';
+    dropEl = document.elementFromPoint(e.clientX, e.clientY);
+    ghost.remove();
+  } else {
+    dropEl = document.elementFromPoint(e.clientX, e.clientY);
+  }
+
+  const colTarget      = dropEl?.closest('.column[data-col]');
+  const assigneeTarget = dropEl?.closest('.assignee-cards[data-col]');
+
+  if (colTarget)      await handleDrop(colTarget.dataset.col);
+  else if (assigneeTarget) await handleAssigneeDrop(assigneeTarget);
+  else draggedId = null;
 }
 
 // ── タイムラインビュー ────────────────────────────────────────────────────────

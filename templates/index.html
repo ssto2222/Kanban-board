@@ -10,7 +10,8 @@
   <div class="app">
 
     <!-- ── サイドバー ── -->
-    <nav class="sidebar">
+    <nav class="sidebar" id="sidebar">
+      <button class="sidebar-close" id="sidebar-close" aria-label="閉じる">✕</button>
       <div class="sidebar-logo">🗒 StickyKanban</div>
 
       <div class="sidebar-search">
@@ -35,8 +36,16 @@
       </div>
     </nav>
 
+    <!-- サイドバー背景オーバーレイ (モバイル) -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
     <!-- ── メインコンテンツ ── -->
     <main class="main-content">
+      <!-- トップバー (モバイルのみ表示) -->
+      <div class="topbar" id="topbar">
+        <button class="hamburger" id="hamburger" aria-label="メニュー">☰</button>
+        <span class="topbar-title">🗒 StickyKanban</span>
+      </div>
 
       <!-- カンバンビュー -->
       <div id="view-kanban" class="view active">
