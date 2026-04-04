@@ -20,6 +20,7 @@ let tasks = [];
 let draggedId  = null;
 let editingTask = null;
 let currentView = 'kanban';
+let tlLastClick = null;  // タイムラインのダブルクリック検出用 { taskId, time }
 
 // タイムラインのドラッグ操作用モジュール変数
 let tlMinDt   = null;   // 現在の表示ウィンドウ開始日時
@@ -243,7 +244,20 @@ function createCard(task, draggable = false) {
     e.stopPropagation();
     openEditModal(task);
   });
-  card.addEventListener('click', () => openEditModal(task));
+  // ダブルクリック（デスクトップ）
+  card.addEventListener('dblclick', (e) => {
+    if (!e.target.closest('.card-edit-btn')) openEditModal(task);
+  });
+  // ダブルタップ（タブレット）
+  let _lastTap = 0;
+  card.addEventListener('touchend', (e) => {
+    const now = Date.now();
+    if (now - _lastTap < 300 && !e.target.closest('.card-edit-btn')) {
+      e.preventDefault();
+      openEditModal(task);
+    }
+    _lastTap = now;
+  });
 
   return card;
 }
@@ -773,8 +787,14 @@ async function onTlPointerUp(e) {
   if (!task) return;
 
   if (!moved) {
-    // クリック → 編集モーダルを開く
-    openEditModal(task);
+    // ダブルクリック検出 → 編集モーダルを開く
+    const now = Date.now();
+    if (tlLastClick && tlLastClick.taskId === taskId && now - tlLastClick.time < 350) {
+      tlLastClick = null;
+      openEditModal(task);
+    } else {
+      tlLastClick = { taskId, time: now };
+    }
     return;
   }
 
