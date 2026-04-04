@@ -414,14 +414,23 @@ function renderTimeline() {
     return;
   }
 
-  // 表示範囲
-  const minDt   = new Date(Math.min(...rows.map(r => r.start.getTime()), today.getTime()) - 2 * 86400000);
-  const maxDt   = new Date(Math.max(...rows.map(r => r.end.getTime()),   today.getTime()) + 7 * 86400000);
+  // ── スパン別の表示ウィンドウ・目盛り間隔 ──
+  const SPAN_CONFIG = {
+    '2w': { before:  2, after:  14, step:  1, showDow: true  },  // 2週間・日次
+    '2m': { before:  7, after:  60, step:  7, showDow: false },  // 2ヶ月・週次
+    '6m': { before: 14, after: 180, step: 14, showDow: false },  // 半年・隔週
+    '1y': { before: 30, after: 365, step: 30, showDow: false },  // 1年・月次
+  };
+  const cfg = SPAN_CONFIG[span] || SPAN_CONFIG['2m'];
+
+  const DAY = 86400000;
+  const minDt   = new Date(today.getTime() - cfg.before * DAY);
+  const maxDt   = new Date(today.getTime() + cfg.after  * DAY);
   const totalMs = maxDt - minDt;
   const getPct  = dt => (dt - minDt) / totalMs * 100;
 
-  // 目盛り生成
-  const WD   = ['月','火','水','木','金','土','日'];
+  // ── 目盛り生成（ウィンドウ内のみ） ──
+  const WD    = ['月','火','水','木','金','土','日'];
   const ticks = [];
   const curr  = new Date(minDt);
   curr.setHours(0, 0, 0, 0);
@@ -432,22 +441,22 @@ function renderTimeline() {
       const wd  = WD[curr.getDay() === 0 ? 6 : curr.getDay() - 1];
       const mm  = String(curr.getMonth() + 1).padStart(2, '0');
       const dd  = String(curr.getDate()).padStart(2, '0');
-      let label = span === 'daily' ? `${mm}/${dd}<br>${wd}` : `${mm}/${dd}`;
-      let cls   = span === 'daily' && curr.getDay() === 6 ? 'sat'
-                : span === 'daily' && curr.getDay() === 0 ? 'sun' : '';
+      const label = cfg.showDow ? `${mm}/${dd}<br>${wd}` : `${mm}/${dd}`;
+      const cls   = cfg.showDow && curr.getDay() === 6 ? 'sat'
+                  : cfg.showDow && curr.getDay() === 0 ? 'sun' : '';
       ticks.push({ p, label, cls });
     }
-    if (span === 'daily')   curr.setDate(curr.getDate() + 1);
-    else if (span === 'weekly') curr.setDate(curr.getDate() + 7);
-    else                    curr.setDate(curr.getDate() + 30);
+    curr.setDate(curr.getDate() + cfg.step);
   }
 
-  // グループ化
-  const groupMap = {};
+  // ウィンドウ外のバーは除外
+  const visibleMap = {};
   for (const r of rows) {
-    groupMap[r.group] = groupMap[r.group] || [];
-    groupMap[r.group].push(r);
+    if (r.end < minDt || r.start > maxDt) continue;
+    visibleMap[r.group] = visibleMap[r.group] || [];
+    visibleMap[r.group].push(r);
   }
+  const groupMap = visibleMap;
 
   // HTML 構築
   const LANE_H  = 36;  // 1タスクあたりの行高さ(px)

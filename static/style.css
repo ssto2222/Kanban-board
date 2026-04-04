@@ -378,19 +378,20 @@ body {
 #timeline-content { overflow-x: auto; }
 
 .tl-wrap        { background: var(--bg); border-radius: 8px; padding: 8px 0; min-width: 700px; }
-.tl-axis-row    { display: flex; align-items: flex-end; height: 40px; border-bottom: 2px solid #444; }
+/* 軸行: 日次2行ラベル(~28px)が収まるよう50px確保 */
+.tl-axis-row    { display: flex; align-items: stretch; height: 50px; border-bottom: 2px solid #555; }
 .tl-group-col   { width: 150px; min-width: 150px; flex-shrink: 0; }
-.tl-chart-col   { flex: 1; position: relative; height: 40px; min-width: 600px; }
-.tl-tick        { position: absolute; font-size: 10px; color: var(--subtext); text-align: center; transform: translateX(-50%); line-height: 1.3; }
+.tl-chart-col   { flex: 1; position: relative; min-width: 600px; overflow: hidden; }
+/* 目盛りラベル: bottom基準で明示配置、はみ出しを visible に */
+.tl-tick        { position: absolute; bottom: 4px; font-size: 10px; color: var(--subtext); text-align: center; transform: translateX(-50%); line-height: 1.4; white-space: nowrap; }
 .tl-tick.sat    { color: #4ecca3; }
 .tl-tick.sun    { color: #ff4b2b; }
-/* .tl-row の高さは JS から style 属性で指定するため CSS では指定しない */
+/* データ行: 高さはJSからstyleで指定 */
 .tl-row         { display: flex; align-items: stretch; border-bottom: 1px solid var(--border); }
 .tl-group-name  { width: 150px; min-width: 150px; padding: 10px 12px; font-size: 12px; color: #ccc; border-right: 1px solid var(--border); display: flex; align-items: flex-start; padding-top: 12px; overflow: hidden; word-break: break-all; }
-.tl-chart-area  { flex: 1; position: relative; min-width: 600px; }
+.tl-chart-area  { flex: 1; position: relative; min-width: 600px; overflow: hidden; }
 .tl-gridline    { position: absolute; top: 0; bottom: 0; width: 1px; background: var(--border); }
 .tl-today-line  { position: absolute; top: 0; bottom: 0; width: 2px; background: #e94560; z-index: 10; }
-/* バーの top/height は JS で計算して style 属性で指定する */
 .tl-bar-outer   { position: absolute; z-index: 2; cursor: pointer; }
 .tl-bar-fill    { width: 100%; height: 100%; border-radius: 5px; box-shadow: 1px 2px 5px rgba(0,0,0,0.45); position: relative; overflow: hidden; }
 .tl-bar-name    { position: absolute; inset: 0; padding: 0 6px; font-size: 10px; font-weight: bold; color: rgba(0,0,0,0.72); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: flex; align-items: center; }
