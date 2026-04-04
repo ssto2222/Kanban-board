@@ -103,6 +103,15 @@ function bindEvents() {
   });
   document.getElementById('tl-span').addEventListener('change', renderTimeline);
 
+  // 期限変更時にカード色を自動更新
+  document.getElementById('task-deadline').addEventListener('change', () => {
+    const deadline = document.getElementById('task-deadline').value;
+    if (!deadline) return;
+    const days = daysRemaining(deadline);
+    if (days < 0)       document.getElementById('task-color').value = '#EF476F';
+    else if (days <= 2) document.getElementById('task-color').value = '#FFB347';
+  });
+
   // タイムラインのバーのドラッグ・リサイズ（イベント委譲）
   document.getElementById('timeline-content').addEventListener('pointerdown', onTlPointerDown);
   document.addEventListener('pointermove', onTlPointerMove);
@@ -197,7 +206,9 @@ function createCard(task, draggable = false) {
   card.draggable = draggable;
   card.dataset.id = task.id;
 
-  const displayColor = getPriorityColor(task.deadline, task.color);
+  const displayColor = task.column === 'done'
+    ? '#8a8a9a'
+    : getPriorityColor(task.deadline, task.color);
   card.style.background = displayColor;
 
   const topBg = darken(displayColor, 0.2);
@@ -402,6 +413,7 @@ function renderTimeline() {
   // バー用データ構築
   const rows = [];
   for (const t of tasks) {
+    if (t.column === 'done') continue;  // 完了タスクはタイムラインに表示しない
     let start   = t.started_at  ? new Date(t.started_at)  : null;
     let end     = t.finished_at ? new Date(t.finished_at) : null;
     const dl    = t.deadline    ? new Date(t.deadline)     : null;
