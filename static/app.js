@@ -112,8 +112,10 @@ function bindEvents() {
 
   // タイムラインのバーのドラッグ・リサイズ（イベント委譲）
   document.getElementById('timeline-content').addEventListener('pointerdown', onTlPointerDown);
-  document.addEventListener('pointermove', onTlPointerMove);
-  document.addEventListener('pointerup',   onTlPointerUp);
+  document.addEventListener('pointermove',   onTlPointerMove);
+  document.addEventListener('pointerup',     onTlPointerUp);
+  // pointercancel: iOSがスクロール等でタッチをキャンセルした際のゴーストを確実に削除
+  document.addEventListener('pointercancel', onCardPointerUp);
 
   // 新規タスクフォーム
   document.getElementById('nt-is-milestone').addEventListener('change', toggleMilestone);
@@ -397,11 +399,13 @@ async function handleAssigneeDrop(target) {
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
   document.getElementById('sidebar-backdrop').classList.add('open');
+  document.body.style.overflow = 'hidden';  // ドロワー開放中はbodyスクロールをロック
 }
 
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-backdrop').classList.remove('open');
+  document.body.style.overflow = '';  // スタイルシートの設定に戻す
 }
 
 // ── カード DnD (Pointer Events) ───────────────────────────────────────────────
@@ -453,10 +457,10 @@ function onCardPointerMove(e) {
     gh.style.left = `${e.clientX - gh.offsetWidth / 2}px`;
     gh.style.top  = `${e.clientY - gh.offsetHeight / 2}px`;
 
-    // ドロップ候補をハイライト
-    gh.style.visibility = 'hidden';
+    // ドロップ候補をハイライト（display:none で一時退避してから elementFromPoint）
+    gh.style.display = 'none';
     const el = document.elementFromPoint(e.clientX, e.clientY);
-    gh.style.visibility = '';
+    gh.style.display = '';
 
     document.querySelectorAll('.column[data-col], .assignee-cards[data-col]')
       .forEach(c => c.classList.remove('highlight'));
@@ -480,10 +484,10 @@ async function onCardPointerUp(e) {
     return;
   }
 
-  // ゴーストを隠してドロップ先を特定
+  // ゴーストを display:none にしてドロップ先を特定（visibility:hidden は一部WebKitで不十分）
   let dropEl = null;
   if (ghost) {
-    ghost.style.visibility = 'hidden';
+    ghost.style.display = 'none';
     dropEl = document.elementFromPoint(e.clientX, e.clientY);
     ghost.remove();
   } else {
