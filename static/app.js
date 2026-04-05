@@ -103,13 +103,36 @@ function bindEvents() {
   });
   document.getElementById('tl-span').addEventListener('change', renderTimeline);
 
-  // 期限変更時にカード色を自動更新
+  // 期限変更時: カード色を自動更新 + 終了日(finished_at)を同期
   document.getElementById('task-deadline').addEventListener('change', () => {
     const deadline = document.getElementById('task-deadline').value;
     if (!deadline) return;
     const days = daysRemaining(deadline);
     if (days < 0)       document.getElementById('task-color').value = '#EF476F';
     else if (days <= 2) document.getElementById('task-color').value = '#FFB347';
+    // 終了日を期限日 23:59 に合わせる
+    document.getElementById('task-finished-at').value = `${deadline}T23:59`;
+  });
+
+  // 終了日変更時: 期限を同期
+  document.getElementById('task-finished-at').addEventListener('change', () => {
+    const fin = document.getElementById('task-finished-at').value;
+    if (!fin) return;
+    const dateOnly = fin.split('T')[0];
+    document.getElementById('task-deadline').value = dateOnly;
+    const days = daysRemaining(dateOnly);
+    if (days < 0)       document.getElementById('task-color').value = '#EF476F';
+    else if (days <= 2) document.getElementById('task-color').value = '#FFB347';
+  });
+
+  // 新規タスクフォーム: 期限 ↔ 終了日の同期
+  document.getElementById('nt-deadline').addEventListener('change', () => {
+    const dl = document.getElementById('nt-deadline').value;
+    if (dl) document.getElementById('nt-finished-at').value = `${dl}T23:59`;
+  });
+  document.getElementById('nt-finished-at').addEventListener('change', () => {
+    const fin = document.getElementById('nt-finished-at').value;
+    if (fin) document.getElementById('nt-deadline').value = fin.split('T')[0];
   });
 
   // タイムラインのバーのドラッグ・リサイズ（イベント委譲）
@@ -954,6 +977,7 @@ async function onTlPointerUp(e) {
   const updates = {
     started_at:  newStart.toISOString(),
     finished_at: newEnd.toISOString(),
+    deadline:    newEnd.toISOString().split('T')[0],  // 期限を終了日に合わせる
   };
 
   Object.assign(task, updates);
