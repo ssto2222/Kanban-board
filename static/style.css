@@ -13,14 +13,14 @@ body {
   background: var(--bg);
   color: var(--text);
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
 /* ── レイアウト ── */
 .app {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -714,9 +714,10 @@ details[open] .period-toggle { color: var(--text); }
 .sidebar-close { display: none; }
 
 /* ═══════════════════════════════════════════════════════════════
-   レスポンシブ: タブレット・スマートフォン (≤ 768px)
+   レスポンシブ: タブレット・スマートフォン (≤ 1024px)
+   iPad Air (820px), iPad Pro 11" (834px), iPad Pro 12.9" (1024px) を含む
    ═══════════════════════════════════════════════════════════════ */
-@media (max-width: 768px) {
+@media (max-width: 1024px) {
   body { overflow: auto; }
 
   .app {
@@ -732,7 +733,8 @@ details[open] .period-toggle { color: var(--text); }
     align-items: center;
     gap: 12px;
     padding: 0 14px;
-    height: 52px;
+    padding-top: env(safe-area-inset-top, 0px);  /* iOS ノッチ対応 */
+    height: calc(52px + env(safe-area-inset-top, 0px));
     background: var(--panel);
     border-bottom: 1px solid var(--border);
     flex-shrink: 0;
@@ -807,7 +809,7 @@ details[open] .period-toggle { color: var(--text); }
   .view {
     height: auto;
     overflow: visible;
-    min-height: calc(100dvh - 52px);
+    min-height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
   }
 
   .view-scroll {
@@ -904,9 +906,9 @@ details[open] .period-toggle { color: var(--text); }
 }
 
 /* ═══════════════════════════════════════════════════════════════
-   小型スマートフォン (≤ 480px)
+   小型スマートフォン (≤ 560px)
    ═══════════════════════════════════════════════════════════════ */
-@media (max-width: 480px) {
+@media (max-width: 560px) {
   .column { min-width: 200px; }
   .tl-group-col,
   .tl-group-name { width: 80px !important; min-width: 80px !important; }
