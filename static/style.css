@@ -679,13 +679,21 @@ details[open] .period-toggle { color: var(--text); }
   height: 100%;
   transform: rotate(45deg);
   border-radius: 2px;
-  box-shadow: 1px 2px 5px rgba(0,0,0,0.5);
-  transition: filter 0.1s, box-shadow 0.1s;
+  background: linear-gradient(135deg, #7ee8ff 0%, #1e90ff 45%, #0a3d8f 100%);
+  border: 1px solid rgba(126, 232, 255, 0.55);
+  box-shadow:
+    0 0 7px rgba(30, 144, 255, 0.75),
+    0 0 2px rgba(126, 232, 255, 0.9),
+    0 2px 5px rgba(0, 0, 0, 0.55);
+  transition: filter 0.12s, box-shadow 0.12s;
 }
 
 .tl-ms-pos:hover .tl-ms-diamond {
-  filter: brightness(1.25);
-  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
+  filter: brightness(1.25) saturate(1.2);
+  box-shadow:
+    0 0 14px rgba(30, 144, 255, 0.95),
+    0 0 4px rgba(126, 232, 255, 1),
+    0 3px 8px rgba(0, 0, 0, 0.6);
 }
 
 .tl-ms-label {

@@ -683,7 +683,7 @@ function renderTimeline() {
         const ctrY  = laneTop + LANE_H / 2;
         const label = esc(r.title.replace(/^🔷\s*/, ''));
         h += `<div class="tl-ms-pos" data-id="${esc(r.id)}" title="${label}" style="left:${dlPct.toFixed(2)}%;top:${ctrY}px">`;
-        h += `<div class="tl-ms-diamond" style="background:${r.color}"></div>`;
+        h += `<div class="tl-ms-diamond"></div>`;
         h += `<span class="tl-ms-label">${label}</span>`;
         h += '</div>';
       } else {
