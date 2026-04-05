@@ -232,14 +232,7 @@ body {
   box-shadow: 3px 6px 16px rgba(0,0,0,0.55);
 }
 
-.card.dragging {
-  opacity: 0.3;
-  cursor: grabbing;
-}
-
-.card[data-draggable].dragging { cursor: grabbing; }
-
-.card[data-draggable] { cursor: grab; }
+.card.dragging { opacity: 0.3; }
 
 .card-top {
   display: flex;
@@ -629,8 +622,21 @@ details[open] .period-toggle { color: var(--text); }
   transition: none !important;
 }
 
-/* ── タッチドラッグ: touch-action をカード単位で無効化 ── */
-.card[data-draggable] { touch-action: none; }
+/* ── ドラッグハンドル: ハンドルのみ touch-action:none でスクロールと切り分け ── */
+.drag-handle {
+  touch-action: none;
+  cursor: grab;
+  font-size: 13px;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.3);
+  padding: 0 3px 0 0;
+  flex-shrink: 0;
+  user-select: none;
+  transition: color 0.12s;
+}
+
+.drag-handle:hover  { color: rgba(0, 0, 0, 0.6); }
+.drag-handle:active { cursor: grabbing; }
 
 /* ── マイルストーンセクション (カンバン) ── */
 .milestone-section {

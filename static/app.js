@@ -253,6 +253,7 @@ function createCard(task, draggable = false) {
 
   card.innerHTML = `
     <div class="card-top" style="background:${topBg}">
+      ${draggable ? '<span class="drag-handle" title="ドラッグして移動">⠿</span>' : ''}
       <span class="card-title">${esc(task.title)}</span>
       <button class="card-edit-btn" title="編集">✏️</button>
     </div>
@@ -264,7 +265,9 @@ function createCard(task, draggable = false) {
   `;
 
   if (draggable) {
-    card.addEventListener('pointerdown', (e) => onCardPointerDown(e, task, card));
+    // ハンドルにのみ pointerdown を付ける → カード本体はスクロール可
+    card.querySelector('.drag-handle')
+        .addEventListener('pointerdown', (e) => onCardPointerDown(e, task, card));
   }
 
   card.querySelector('.card-edit-btn').addEventListener('click', (e) => {
@@ -448,8 +451,7 @@ function closeSidebar() {
 // ── カード DnD (Pointer Events) ───────────────────────────────────────────────
 
 function onCardPointerDown(e, task, card) {
-  if (e.button === 2) return;                        // 右クリック除外
-  if (e.target.closest('.card-edit-btn')) return;   // 編集ボタンは除外
+  if (e.button === 2) return;  // 右クリック除外
 
   cardDrag = {
     taskId: task.id,
