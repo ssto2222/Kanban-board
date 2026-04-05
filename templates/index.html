@@ -259,11 +259,19 @@
         </div>
       </details>
 
-      <div class="modal-btns">
+      <div class="modal-btns" id="modal-btns">
         <button class="btn btn-cancel" id="btn-cancel">キャンセル</button>
         <div class="modal-btns-right">
           <button class="btn btn-danger" id="btn-delete">削除</button>
           <button class="btn btn-primary" id="btn-save">保存</button>
+        </div>
+      </div>
+      <!-- 削除確認（confirm()の代わりにインラインで表示） -->
+      <div class="delete-confirm-row" id="delete-confirm-row" style="display:none">
+        <span class="delete-confirm-msg">⚠️ 本当に削除しますか？</span>
+        <div class="delete-confirm-btns">
+          <button class="btn btn-cancel" id="btn-delete-cancel">いいえ</button>
+          <button class="btn btn-danger" id="btn-delete-confirm">削除する</button>
         </div>
       </div>
     </div>

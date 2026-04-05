@@ -24,6 +24,7 @@ let editingTask = null;
 let currentView = 'assignee';
 let tlLastClick = null;  // タイムラインのダブルクリック検出用 { taskId, time }
 let cardDrag   = null;   // カードのPointer Events DnD用 { taskId, card, ghost, startX, startY, moved }
+let _scrollY   = 0;      // スクロールロック用保存値
 
 // タイムラインのドラッグ操作用モジュール変数
 let tlMinDt   = null;   // 現在の表示ウィンドウ開始日時
@@ -72,7 +73,16 @@ function bindEvents() {
   // モーダルボタン
   document.getElementById('btn-cancel').addEventListener('click', closeModal);
   document.getElementById('btn-save').addEventListener('click', saveTask);
-  document.getElementById('btn-delete').addEventListener('click', deleteTask);
+  // 削除: confirm()の代わりにインライン確認UIを表示
+  document.getElementById('btn-delete').addEventListener('click', () => {
+    document.getElementById('modal-btns').style.display        = 'none';
+    document.getElementById('delete-confirm-row').style.display = 'flex';
+  });
+  document.getElementById('btn-delete-cancel').addEventListener('click', () => {
+    document.getElementById('delete-confirm-row').style.display = 'none';
+    document.getElementById('modal-btns').style.display        = 'flex';
+  });
+  document.getElementById('btn-delete-confirm').addEventListener('click', deleteTask);
 
   // モーダル背景クリックで閉じる
   document.getElementById('overlay').addEventListener('click', (e) => {
@@ -436,16 +446,36 @@ async function handleAssigneeDrop(target) {
 
 // ── サイドバー開閉 (モバイル) ──────────────────────────────────────────────────
 
+// ── スクロールロック (iOS Safari 対応) ────────────────────────────────────────
+
+function lockBodyScroll() {
+  _scrollY = window.scrollY;
+  document.body.style.overflow = 'hidden';
+  document.body.style.position = 'fixed';
+  document.body.style.top      = `-${_scrollY}px`;
+  document.body.style.width    = '100%';
+}
+
+function unlockBodyScroll() {
+  document.body.style.overflow = '';
+  document.body.style.position = '';
+  document.body.style.top      = '';
+  document.body.style.width    = '';
+  window.scrollTo(0, _scrollY);
+}
+
+// ── サイドバー開閉 (モバイル) ──────────────────────────────────────────────────
+
 function openSidebar() {
   document.getElementById('sidebar').classList.add('open');
   document.getElementById('sidebar-backdrop').classList.add('open');
-  document.body.style.overflow = 'hidden';  // ドロワー開放中はbodyスクロールをロック
+  lockBodyScroll();
 }
 
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebar-backdrop').classList.remove('open');
-  document.body.style.overflow = '';  // スタイルシートの設定に戻す
+  unlockBodyScroll();
 }
 
 // ── カード DnD (Pointer Events) ───────────────────────────────────────────────
@@ -799,12 +829,17 @@ function openEditModal(task) {
 
 function showModal() {
   document.getElementById('overlay').style.display = 'flex';
+  // 削除確認UIをリセット
+  document.getElementById('delete-confirm-row').style.display = 'none';
+  document.getElementById('modal-btns').style.display         = 'flex';
+  lockBodyScroll();
   document.getElementById('task-title').focus();
 }
 
 function closeModal() {
   document.getElementById('overlay').style.display = 'none';
   editingTask = null;
+  unlockBodyScroll();
 }
 
 async function saveTask() {
@@ -837,8 +872,6 @@ async function saveTask() {
 
 async function deleteTask() {
   if (!editingTask) return;
-  if (!confirm('このタスクを削除しますか？')) return;
-
   const id = editingTask.id;
   tasks = tasks.filter(t => t.id !== id);
   renderCurrentView();

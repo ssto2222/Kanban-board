@@ -618,6 +618,23 @@ details[open] .period-toggle { color: var(--text); }
   gap: 8px;
 }
 
+/* ── 削除確認行 ── */
+.delete-confirm-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 24px;
+  padding: 12px 0 env(safe-area-inset-bottom, 8px);
+  border-top: 1px solid var(--border);
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  z-index: 1;
+}
+.delete-confirm-msg { font-size: 13px; color: #e94560; }
+.delete-confirm-btns { display: flex; gap: 8px; }
+
 /* ── ドラッグゴースト ── */
 .card-ghost {
   position: fixed !important;
