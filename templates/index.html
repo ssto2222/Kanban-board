@@ -20,8 +20,8 @@
       </div>
 
       <div class="sidebar-nav">
-        <button class="nav-btn active" data-view="kanban">📋 カンバン</button>
-        <button class="nav-btn" data-view="assignee">👤 担当者別</button>
+        <button class="nav-btn" data-view="kanban">📋 カンバン</button>
+        <button class="nav-btn active" data-view="assignee">👤 担当者別</button>
         <button class="nav-btn" data-view="timeline">📅 タイムライン</button>
         <button class="nav-btn" data-view="new_task">➕ 新規タスク</button>
       </div>
@@ -48,7 +48,15 @@
       </div>
 
       <!-- カンバンビュー -->
-      <div id="view-kanban" class="view active">
+      <div id="view-kanban" class="view">
+        <!-- マイルストーンセクション（未完了のみ、JSでトグル） -->
+        <div class="milestone-section" id="kanban-milestone-section" style="display:none">
+          <div class="milestone-section-hdr">
+            <span>🔷 マイルストーン</span>
+            <span class="badge" id="count-milestone">0</span>
+          </div>
+          <div class="milestone-cards" id="cards-milestone"></div>
+        </div>
         <div class="board">
           <div class="column" id="col-todo" data-col="todo">
             <div class="col-header" style="background:#0f3460">
@@ -77,7 +85,7 @@
       </div>
 
       <!-- 担当者別ビュー -->
-      <div id="view-assignee" class="view">
+      <div id="view-assignee" class="view active">
         <div class="view-header">
           <h2>👤 担当者別</h2>
         </div>

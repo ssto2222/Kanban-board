@@ -627,6 +627,77 @@ details[open] .period-toggle { color: var(--text); }
 /* ── タッチドラッグ: touch-action をカード単位で無効化 ── */
 .card[data-draggable] { touch-action: none; }
 
+/* ── マイルストーンセクション (カンバン) ── */
+.milestone-section {
+  padding: 10px 12px 0;
+  flex-shrink: 0;
+}
+
+.milestone-section-hdr {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--panel);
+  border-left: 4px solid #E94560;
+  border-radius: 0 8px 8px 0;
+  margin-bottom: 10px;
+  font-weight: bold;
+  font-size: 14px;
+}
+
+.milestone-cards {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 0 4px 10px;
+}
+
+.milestone-cards .card {
+  width: 170px;
+  flex-shrink: 0;
+}
+
+/* ── タイムライン上のマイルストーン (ひし形) ── */
+.tl-ms-pos {
+  position: absolute;
+  width: 22px;
+  height: 22px;
+  z-index: 4;
+  cursor: pointer;
+  transform: translateX(-50%) translateY(-50%);
+  user-select: none;
+}
+
+.tl-ms-diamond {
+  width: 100%;
+  height: 100%;
+  transform: rotate(45deg);
+  border-radius: 3px;
+  box-shadow: 1px 2px 6px rgba(0,0,0,0.5);
+  transition: filter 0.1s, box-shadow 0.1s;
+}
+
+.tl-ms-pos:hover .tl-ms-diamond {
+  filter: brightness(1.25);
+  box-shadow: 0 3px 12px rgba(0,0,0,0.6);
+}
+
+.tl-ms-label {
+  position: absolute;
+  left: 26px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 10px;
+  font-weight: bold;
+  color: #ccc;
+  white-space: nowrap;
+  pointer-events: none;
+  max-width: 110px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 /* ── サイドバー背景オーバーレイ (モバイル) ── */
 .sidebar-backdrop {
   display: none;
