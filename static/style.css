@@ -157,22 +157,28 @@ body {
 .view-scroll::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
 
 /* ── カンバンボード ── */
+#view-kanban {
+  overflow-y: auto;  /* ビュー全体を縦スクロール可に */
+}
+
 #view-kanban .board {
   display: flex;
   gap: 12px;
-  flex: 1;
-  overflow: hidden;
   padding: 12px;
+  align-items: flex-start;  /* 列を上揃え（高さ固定しない） */
+  overflow-x: auto;
+  overflow-y: visible;
 }
 
 .column {
   flex: 1;
+  min-width: 220px;
   display: flex;
   flex-direction: column;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: 10px;
-  overflow: hidden;
+  overflow: visible;  /* 列の高さをカードに合わせて伸ばす */
   transition: background 0.15s, border-color 0.15s;
 }
 
@@ -200,8 +206,7 @@ body {
 }
 
 .cards {
-  flex: 1;
-  overflow-y: auto;
+  overflow-y: visible;
   padding: 10px;
   display: flex;
   flex-direction: column;
@@ -661,8 +666,8 @@ details[open] .period-toggle { color: var(--text); }
 /* ── タイムライン上のマイルストーン (ひし形) ── */
 .tl-ms-pos {
   position: absolute;
-  width: 22px;
-  height: 22px;
+  width: 14px;
+  height: 14px;
   z-index: 4;
   cursor: pointer;
   transform: translateX(-50%) translateY(-50%);
@@ -673,19 +678,19 @@ details[open] .period-toggle { color: var(--text); }
   width: 100%;
   height: 100%;
   transform: rotate(45deg);
-  border-radius: 3px;
-  box-shadow: 1px 2px 6px rgba(0,0,0,0.5);
+  border-radius: 2px;
+  box-shadow: 1px 2px 5px rgba(0,0,0,0.5);
   transition: filter 0.1s, box-shadow 0.1s;
 }
 
 .tl-ms-pos:hover .tl-ms-diamond {
   filter: brightness(1.25);
-  box-shadow: 0 3px 12px rgba(0,0,0,0.6);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.6);
 }
 
 .tl-ms-label {
   position: absolute;
-  left: 26px;
+  left: 18px;
   top: 50%;
   transform: translateY(-50%);
   font-size: 10px;
@@ -835,11 +840,6 @@ details[open] .period-toggle { color: var(--text); }
   .column {
     min-width: 240px;
     flex-shrink: 0;
-  }
-
-  .cards {
-    overflow-y: visible;
-    max-height: none;
   }
 
   /* ── 担当者別: カラム縦積み ── */
