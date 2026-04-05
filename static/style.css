@@ -604,6 +604,13 @@ details[open] .period-toggle { color: var(--text); }
   justify-content: space-between;
   align-items: center;
   margin-top: 24px;
+  /* スクロール時でも常に画面内に固定 */
+  position: sticky;
+  bottom: 0;
+  background: var(--bg);
+  padding: 12px 0 env(safe-area-inset-bottom, 8px);
+  border-top: 1px solid var(--border);
+  z-index: 1;
 }
 
 .modal-btns-right {
@@ -872,9 +879,8 @@ details[open] .period-toggle { color: var(--text); }
     width: 100% !important;
     max-width: 100% !important;
     max-height: 100dvh;
-    min-height: 100dvh;
     border-radius: 0 !important;
-    padding: 20px 16px;
+    padding: 20px 16px 0;
     overflow-y: auto;
   }
 
