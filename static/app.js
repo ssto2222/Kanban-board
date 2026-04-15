@@ -265,6 +265,7 @@ function createCard(task, draggable = false) {
     <div class="card-top" style="background:${topBg}">
       ${draggable ? '<span class="drag-handle" title="ドラッグして移動">⠿</span>' : ''}
       <span class="card-title">${esc(task.title)}</span>
+      <button class="card-copy-btn" title="コピー">📋</button>
       <button class="card-edit-btn" title="編集">✏️</button>
     </div>
     <div class="card-body">
@@ -280,6 +281,10 @@ function createCard(task, draggable = false) {
         .addEventListener('pointerdown', (e) => onCardPointerDown(e, task, card));
   }
 
+  card.querySelector('.card-copy-btn').addEventListener('click', (e) => {
+    e.stopPropagation();
+    copyTask(task);
+  });
   card.querySelector('.card-edit-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     openEditModal(task);
@@ -827,6 +832,21 @@ function openEditModal(task) {
   showModal();
 }
 
+function copyTask(src) {
+  editingTask = null;
+  document.getElementById('modal-title').textContent       = 'タスクをコピー';
+  document.getElementById('task-title').value              = src.title + ' のコピー';
+  document.getElementById('task-assignee').value           = src.assignee   || '';
+  document.getElementById('task-deadline').value           = src.deadline   || '';
+  document.getElementById('task-column').value             = src.column     || 'todo';
+  document.getElementById('task-note').value               = src.note       || '';
+  document.getElementById('task-color').value              = src.color      || '#FFD166';
+  document.getElementById('task-started-at').value         = fmtDatetimeLocal(src.started_at);
+  document.getElementById('task-finished-at').value        = fmtDatetimeLocal(src.finished_at);
+  document.getElementById('btn-delete').style.display      = 'none';
+  showModal();
+}
+
 function showModal() {
   document.getElementById('overlay').style.display = 'flex';
   // 削除確認UIをリセット
@@ -865,6 +885,11 @@ async function saveTask() {
     Object.assign(editingTask, data);
     renderCurrentView();
     await apiPut(editingTask.id, data);
+  } else {
+    // コピー/新規作成モード
+    const created = await apiPost(data);
+    tasks.push(created);
+    renderCurrentView();
   }
 
   closeModal();

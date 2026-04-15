@@ -265,6 +265,18 @@ body {
 
 .card-edit-btn:hover { opacity: 1; }
 
+.card-copy-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 11px;
+  padding: 0;
+  opacity: 0.55;
+  flex-shrink: 0;
+  line-height: 1;
+}
+.card-copy-btn:hover { opacity: 1; }
+
 .card-body {
   padding: 6px 10px 10px;
   display: flex;
@@ -916,8 +928,8 @@ details[open] .period-toggle { color: var(--text); }
     font-size: 14px;
   }
 
-  /* ── カード編集ボタン ── */
-  .card-edit-btn {
+  /* ── カード操作ボタン ── */
+  .card-edit-btn, .card-copy-btn {
     font-size: 15px;
     padding: 3px;
     min-width: 30px;
