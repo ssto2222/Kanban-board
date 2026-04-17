@@ -1,12 +1,15 @@
-from flask import Flask, jsonify, request, render_template
+from flask import Flask, jsonify, request, render_template, session, redirect, url_for
+from functools import wraps
 import json
 import os
 import uuid
 from datetime import date, datetime, timezone
 
 app = Flask(__name__)
+app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me-in-prod")
 
-SAVE_FILE = os.path.join(os.path.expanduser("~"), ".sticky_kanban.json")
+SAVE_FILE  = os.path.join(os.path.expanduser("~"), ".sticky_kanban.json")
+USERS_FILE = os.path.join(os.path.expanduser("~"), ".sticky_kanban_users.json")
 
 
 def _get_supabase():
@@ -50,6 +53,84 @@ def _get_samples():
     ]
     _file_save(samples)
     return samples
+
+
+# ── ユーザーストレージ ────────────────────────────────────────────────────────
+
+def _users_file_load():
+    if not os.path.exists(USERS_FILE):
+        return []
+    try:
+        with open(USERS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def _users_file_save(users):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, ensure_ascii=False, indent=2)
+
+
+def load_users():
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            res = supabase.table("users").select("id,username,display_name,created_at").order("created_at").execute()
+            return res.data or []
+        except Exception:
+            pass
+    return _users_file_load()
+
+
+def find_user(username):
+    for u in load_users():
+        if u.get("username") == username:
+            return u
+    return None
+
+
+def create_user(username, display_name, password):
+    from werkzeug.security import generate_password_hash
+    user = {
+        "id":            str(uuid.uuid4())[:8],
+        "username":      username,
+        "display_name":  display_name or username,
+        "password_hash": generate_password_hash(password),
+        "created_at":    datetime.now(timezone.utc).isoformat(),
+    }
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            res = supabase.table("users").insert(user).execute()
+            return res.data[0] if res.data else user
+        except Exception:
+            pass
+    users = _users_file_load()
+    users.append(user)
+    _users_file_save(users)
+    return user
+
+
+def check_password(username, password):
+    from werkzeug.security import check_password_hash
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            res = supabase.table("users").select("*").eq("username", username).execute()
+            if res.data:
+                u = res.data[0]
+                if check_password_hash(u["password_hash"], password):
+                    return u
+                return None
+        except Exception:
+            pass
+    for u in _users_file_load():
+        if u.get("username") == username:
+            if check_password_hash(u.get("password_hash", ""), password):
+                return u
+            return None
+    return None
 
 
 # ── タスク CRUD ──────────────────────────────────────────────────────────────
@@ -106,7 +187,57 @@ def _delete_task_file(task_id):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    user = find_user(session["username"]) if "username" in session else None
+    return render_template("index.html", current_user=user)
+
+
+@app.route("/login", methods=["GET", "POST"])
+def login():
+    error = None
+    if request.method == "POST":
+        username = request.form.get("username", "").strip()
+        password = request.form.get("password", "")
+        user = check_password(username, password)
+        if user:
+            session["user_id"]  = user["id"]
+            session["username"] = user["username"]
+            session["display_name"] = user.get("display_name", username)
+            return redirect(url_for("index"))
+        error = "ユーザー名またはパスワードが正しくありません"
+    return render_template("login.html", mode="login", error=error)
+
+
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    error = None
+    if request.method == "POST":
+        username     = request.form.get("username", "").strip()
+        display_name = request.form.get("display_name", "").strip()
+        password     = request.form.get("password", "")
+        confirm      = request.form.get("confirm", "")
+
+        if not username or not password:
+            error = "ユーザー名とパスワードは必須です"
+        elif len(username) < 3:
+            error = "ユーザー名は3文字以上にしてください"
+        elif password != confirm:
+            error = "パスワードが一致しません"
+        elif find_user(username):
+            error = "そのユーザー名は既に使われています"
+        else:
+            user = create_user(username, display_name, password)
+            session["user_id"]      = user["id"]
+            session["username"]     = user["username"]
+            session["display_name"] = user.get("display_name", username)
+            return redirect(url_for("index"))
+
+    return render_template("login.html", mode="register", error=error)
+
+
+@app.route("/logout")
+def logout():
+    session.clear()
+    return redirect(url_for("index"))
 
 
 @app.route("/api/tasks", methods=["GET"])
@@ -119,6 +250,18 @@ def get_assignees():
     tasks = load_tasks()
     assignees = sorted({t.get("assignee") for t in tasks if t.get("assignee")})
     return jsonify(assignees)
+
+
+@app.route("/api/users", methods=["GET"])
+def get_users():
+    q = request.args.get("q", "").lower()
+    users = load_users()
+    result = [
+        {"username": u["username"], "display_name": u.get("display_name", u["username"])}
+        for u in users
+        if not q or q in u["username"].lower() or q in u.get("display_name", "").lower()
+    ]
+    return jsonify(result)
 
 
 @app.route("/api/tasks", methods=["POST"])

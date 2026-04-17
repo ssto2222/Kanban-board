@@ -37,6 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
   buildSwatches('swatches', 'task-color');
   buildSwatches('nt-swatches', 'nt-color');
   bindEvents();
+  // 担当者フィールドのユーザーオートコンプリート
+  initUserAutocomplete(
+    document.getElementById('nt-assignee'),
+    document.getElementById('nt-assignee-dropdown')
+  );
+  initUserAutocomplete(
+    document.getElementById('task-assignee'),
+    document.getElementById('task-assignee-dropdown')
+  );
   loadTasks();
 });
 
@@ -154,10 +163,6 @@ function bindEvents() {
 
   // 新規タスクフォーム
   document.getElementById('nt-is-milestone').addEventListener('change', toggleMilestone);
-  document.getElementById('nt-assignee-select').addEventListener('change', () => {
-    const val = document.getElementById('nt-assignee-select').value;
-    if (val) document.getElementById('nt-assignee').value = val;
-  });
   document.getElementById('nt-submit').addEventListener('click', submitNewTask);
 }
 
@@ -176,6 +181,7 @@ function switchView(view) {
   if (view === 'kanban')    renderKanban();
   else if (view === 'assignee')  renderAssignee();
   else if (view === 'timeline')  renderTimeline();
+  else if (view === 'mytasks')   renderMyTasks();
   else if (view === 'new_task')  initNewTaskForm();
 }
 
@@ -188,9 +194,10 @@ async function loadTasks() {
 }
 
 function renderCurrentView() {
-  if (currentView === 'kanban')   renderKanban();
-  else if (currentView === 'assignee') renderAssignee();
-  else if (currentView === 'timeline') renderTimeline();
+  if (currentView === 'kanban')    renderKanban();
+  else if (currentView === 'assignee')  renderAssignee();
+  else if (currentView === 'timeline')  renderTimeline();
+  else if (currentView === 'mytasks')   renderMyTasks();
 }
 
 async function apiPut(id, data) {
@@ -772,23 +779,129 @@ function renderTimeline() {
 // ── 新規タスクフォーム ────────────────────────────────────────────────────────
 
 async function initNewTaskForm() {
-  // 今日の日付をデフォルト設定
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('nt-deadline').value = today;
+}
 
-  // 既存担当者リスト取得
-  try {
-    const res = await fetch('/api/assignees');
-    const assignees = await res.json();
-    const sel = document.getElementById('nt-assignee-select');
-    sel.innerHTML = '<option value="">(新規入力)</option>';
-    for (const a of assignees) {
-      const opt = document.createElement('option');
-      opt.value = a;
-      opt.textContent = a;
-      sel.appendChild(opt);
+// ── ユーザーオートコンプリート ─────────────────────────────────────────────────
+
+function initUserAutocomplete(inputEl, dropdownEl) {
+  if (!inputEl || !dropdownEl) return;
+  let debounceTimer;
+  inputEl.addEventListener('input', () => {
+    clearTimeout(debounceTimer);
+    const q = inputEl.value.trim();
+    if (!q) { dropdownEl.style.display = 'none'; return; }
+    debounceTimer = setTimeout(async () => {
+      try {
+        const users = await fetch(`/api/users?q=${encodeURIComponent(q)}`).then(r => r.json());
+        dropdownEl.innerHTML = '';
+        if (!users.length) { dropdownEl.style.display = 'none'; return; }
+        users.forEach(u => {
+          const item = document.createElement('div');
+          item.className = 'user-suggestion';
+          item.textContent = u.display_name !== u.username
+            ? `${u.display_name} (@${u.username})`
+            : `@${u.username}`;
+          item.addEventListener('mousedown', (e) => {
+            e.preventDefault();  // blurを防ぐ
+            inputEl.value = u.username;
+            dropdownEl.style.display = 'none';
+          });
+          dropdownEl.appendChild(item);
+        });
+        dropdownEl.style.display = 'block';
+      } catch (_) { dropdownEl.style.display = 'none'; }
+    }, 200);
+  });
+  inputEl.addEventListener('blur', () => {
+    setTimeout(() => { dropdownEl.style.display = 'none'; }, 150);
+  });
+}
+
+// ── マイタスクビュー ───────────────────────────────────────────────────────────
+
+function renderMyTasks() {
+  const me = (window.CURRENT_USER || {}).username || '';
+  const container = document.getElementById('mytasks-content');
+  if (!container) return;
+
+  if (!me) {
+    container.innerHTML = '<p style="padding:32px;color:var(--subtext)">ログインするとマイタスクが表示されます。</p>';
+    return;
+  }
+
+  const myTasks = tasks.filter(t => t.assignee === me);
+  container.innerHTML = '';
+
+  if (!myTasks.length) {
+    container.innerHTML = `<p style="padding:32px;color:var(--subtext)">あなたに割り当てられたタスクはありません。</p>`;
+    return;
+  }
+
+  const counts = { todo: 0, wip: 0, done: 0 };
+  for (const t of myTasks) counts[t.column] = (counts[t.column] || 0) + 1;
+
+  const hdr = document.createElement('div');
+  hdr.className = 'assignee-hdr';
+  hdr.innerHTML = `
+    <span>⭐ ${esc((window.CURRENT_USER || {}).display_name || me)}</span>
+    <span class="assignee-count">
+      計&nbsp;${myTasks.length}&nbsp;件&nbsp;｜&nbsp;
+      待機&nbsp;${counts.todo}&nbsp;
+      進行&nbsp;${counts.wip}&nbsp;
+      完了&nbsp;${counts.done}
+    </span>`;
+  container.appendChild(hdr);
+
+  const colsDiv = document.createElement('div');
+  colsDiv.className = 'assignee-cols';
+
+  for (const col of ['todo', 'wip', 'done']) {
+    const colDiv = document.createElement('div');
+    colDiv.className = 'assignee-col';
+
+    const lbl = document.createElement('div');
+    lbl.className = 'status-label';
+    lbl.textContent = `${COL_META[col].label} (${counts[col] || 0})`;
+    colDiv.appendChild(lbl);
+
+    const cardsDiv = document.createElement('div');
+    cardsDiv.className = 'assignee-cards';
+    cardsDiv.dataset.assignee = me;
+    cardsDiv.dataset.col = col;
+
+    const SHOW_LIMIT = 3;
+    const colTasks = myTasks.filter(t => t.column === col);
+    colTasks.forEach((task, i) => {
+      const card = createCard(task, true);
+      if (i >= SHOW_LIMIT) card.classList.add('card-collapsed');
+      cardsDiv.appendChild(card);
+    });
+    colDiv.appendChild(cardsDiv);
+
+    const extra = colTasks.length - SHOW_LIMIT;
+    if (extra > 0) {
+      const btn = document.createElement('button');
+      btn.className = 'cards-show-more';
+      btn.textContent = `▼ もっと見る（${extra}件）`;
+      btn.addEventListener('click', () => {
+        const isCollapsed = !!cardsDiv.querySelector('.card-collapsed');
+        if (isCollapsed) {
+          cardsDiv.querySelectorAll('.card-collapsed').forEach(c => c.classList.remove('card-collapsed'));
+          btn.textContent = '▲ 閉じる';
+        } else {
+          Array.from(cardsDiv.children).slice(SHOW_LIMIT).forEach(c => c.classList.add('card-collapsed'));
+          btn.textContent = `▼ もっと見る（${extra}件）`;
+        }
+      });
+      colDiv.appendChild(btn);
     }
-  } catch (_) { /* ignore */ }
+
+    colsDiv.appendChild(colDiv);
+  }
+
+  container.appendChild(colsDiv);
 }
 
 function toggleMilestone() {

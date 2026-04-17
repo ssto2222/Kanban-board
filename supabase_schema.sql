@@ -1,5 +1,19 @@
--- StickyKanban タスクテーブル
+-- StickyKanban スキーマ
 -- Supabase の SQL Editor で実行してください
+
+-- ── ユーザーテーブル ──────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS users (
+    id           TEXT        PRIMARY KEY,
+    username     TEXT        NOT NULL UNIQUE,
+    display_name TEXT        NOT NULL DEFAULT '',
+    password_hash TEXT       NOT NULL,
+    created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE users ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "allow_all" ON users FOR ALL USING (true) WITH CHECK (true);
+
+-- ── タスクテーブル ─────────────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS tasks (
     id           TEXT        PRIMARY KEY,

@@ -113,6 +113,73 @@ body {
   margin-top: 8px;
 }
 
+/* ── サイドバー ユーザー情報 ── */
+.sidebar-user {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+  gap: 8px;
+}
+
+.sidebar-user-name {
+  font-size: 12px;
+  color: #e0e0f0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-logout {
+  color: var(--subtext);
+  text-decoration: none;
+  font-size: 11px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.btn-logout:hover { color: #e94560; }
+
+.btn-login-link {
+  display: block;
+  color: #4CC9F0;
+  text-decoration: none;
+  font-size: 12px;
+  padding: 6px 0 10px;
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 10px;
+}
+
+.btn-login-link:hover { color: #7ee8ff; }
+
+/* ── 担当者オートコンプリート ── */
+.user-suggestion-wrap { position: relative; }
+
+.user-suggestions {
+  position: absolute;
+  top: calc(100% + 2px);
+  left: 0;
+  right: 0;
+  background: #1e1e3e;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  z-index: 200;
+  max-height: 200px;
+  overflow-y: auto;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.5);
+}
+
+.user-suggestion {
+  padding: 9px 14px;
+  cursor: pointer;
+  font-size: 13px;
+  color: #e0e0f0;
+}
+
+.user-suggestion:hover { background: rgba(255,255,255,0.08); }
+
 /* ── メインコンテンツ ── */
 .main-content {
   flex: 1;

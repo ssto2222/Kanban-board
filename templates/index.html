@@ -23,10 +23,21 @@
         <button class="nav-btn" data-view="kanban">📋 カンバン</button>
         <button class="nav-btn active" data-view="assignee">👤 担当者別</button>
         <button class="nav-btn" data-view="timeline">📅 タイムライン</button>
+        {% if current_user %}
+        <button class="nav-btn" data-view="mytasks">⭐ マイタスク</button>
+        {% endif %}
         <button class="nav-btn" data-view="new_task">➕ 新規タスク</button>
       </div>
 
       <div class="sidebar-footer">
+        {% if current_user %}
+        <div class="sidebar-user">
+          <span class="sidebar-user-name">👤 {{ current_user.display_name }}</span>
+          <a href="/logout" class="btn-logout">ログアウト</a>
+        </div>
+        {% else %}
+        <a href="/login" class="btn-login-link">🔑 ログイン / 新規登録</a>
+        {% endif %}
         <div class="sidebar-section-title">今後追加予定</div>
         <div class="coming-soon-item">📊 統計・レポート</div>
         <div class="coming-soon-item">🔔 通知設定</div>
@@ -116,6 +127,14 @@
         <div id="timeline-content" class="view-scroll"></div>
       </div>
 
+      <!-- マイタスクビュー -->
+      <div id="view-mytasks" class="view">
+        <div class="view-header">
+          <h2>⭐ マイタスク</h2>
+        </div>
+        <div id="mytasks-content" class="view-scroll"></div>
+      </div>
+
       <!-- 新規タスクビュー -->
       <div id="view-new_task" class="view">
         <div class="view-header">
@@ -139,17 +158,16 @@
               </div>
             </div>
 
-            <div class="field-row">
-              <div class="field">
-                <label>既存から選択</label>
-                <select id="nt-assignee-select">
-                  <option value="">(新規入力)</option>
-                </select>
+            <div class="field">
+              <label>担当者</label>
+              <div class="user-suggestion-wrap">
+                <input type="text" id="nt-assignee" placeholder="名前で検索...">
+                <div class="user-suggestions" id="nt-assignee-dropdown" style="display:none"></div>
               </div>
-              <div class="field">
-                <label>担当者名</label>
-                <input type="text" id="nt-assignee" placeholder="担当者名">
-              </div>
+              <!-- 既存テキスト担当者との互換用（非表示） -->
+              <select id="nt-assignee-select" style="display:none">
+                <option value=""></option>
+              </select>
             </div>
 
             <div class="field-row">
@@ -217,7 +235,10 @@
       </div>
       <div class="field">
         <label>担当者</label>
-        <input type="text" id="task-assignee" placeholder="担当者名">
+        <div class="user-suggestion-wrap">
+          <input type="text" id="task-assignee" placeholder="名前で検索...">
+          <div class="user-suggestions" id="task-assignee-dropdown" style="display:none"></div>
+        </div>
       </div>
       <div class="field-row">
         <div class="field">
@@ -277,6 +298,9 @@
     </div>
   </div>
 
+  <script>
+    window.CURRENT_USER = {{ current_user | tojson }};
+  </script>
   <script src="/static/app.js"></script>
 </body>
 </html>
