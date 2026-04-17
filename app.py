@@ -202,7 +202,7 @@ def login():
             session["user_id"]  = user["id"]
             session["username"] = user["username"]
             session["display_name"] = user.get("display_name", username)
-            return redirect(url_for("index"))
+            return redirect(url_for("index") + "?view=mytasks")
         error = "ユーザー名またはパスワードが正しくありません"
     return render_template("login.html", mode="login", error=error)
 
@@ -229,7 +229,7 @@ def register():
             session["user_id"]      = user["id"]
             session["username"]     = user["username"]
             session["display_name"] = user.get("display_name", username)
-            return redirect(url_for("index"))
+            return redirect(url_for("index") + "?view=mytasks")
 
     return render_template("login.html", mode="register", error=error)
 

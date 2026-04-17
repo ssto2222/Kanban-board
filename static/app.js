@@ -46,6 +46,12 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('task-assignee'),
     document.getElementById('task-assignee-dropdown')
   );
+  // URLパラメータ ?view=xxx で初期ビューを上書き
+  const urlView = new URLSearchParams(location.search).get('view');
+  if (urlView) {
+    currentView = urlView;
+    history.replaceState(null, '', location.pathname);  // URLをクリーン
+  }
   loadTasks();
 });
 
@@ -783,6 +789,12 @@ function renderTimeline() {
 async function initNewTaskForm() {
   const today = new Date().toISOString().split('T')[0];
   document.getElementById('nt-deadline').value = today;
+  // ログイン中なら担当者をデフォルト設定（フォームリセット後も再セットされるよう毎回実行）
+  const me = window.CURRENT_USER;
+  if (me) {
+    const assigneeEl = document.getElementById('nt-assignee');
+    if (!assigneeEl.value) assigneeEl.value = me.username;
+  }
 }
 
 // ── ユーザーオートコンプリート ─────────────────────────────────────────────────
@@ -941,7 +953,7 @@ async function submitNewTask() {
   // フォームリセット
   document.getElementById('nt-title').value       = '';
   document.getElementById('nt-note').value        = '';
-  document.getElementById('nt-assignee').value    = '';
+  document.getElementById('nt-assignee').value    = (window.CURRENT_USER || {}).username || '';
   document.getElementById('nt-started-at').value  = '';
   document.getElementById('nt-finished-at').value = '';
   document.getElementById('nt-is-milestone').checked = false;
