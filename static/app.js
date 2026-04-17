@@ -402,12 +402,35 @@ function renderAssignee() {
 
       // ドロップゾーンのハイライトはPointer Events DnDで制御（HTML5 DnD不使用）
 
-      // カードを追加（ドラッグ有効）
-      for (const task of memberTasks.filter(t => t.column === col)) {
-        cardsDiv.appendChild(createCard(task, true));
-      }
+      // カードを追加（ドラッグ有効）、3件超は折りたたむ
+      const SHOW_LIMIT = 3;
+      const colTasks = memberTasks.filter(t => t.column === col);
+      colTasks.forEach((task, i) => {
+        const card = createCard(task, true);
+        if (i >= SHOW_LIMIT) card.classList.add('card-collapsed');
+        cardsDiv.appendChild(card);
+      });
 
       colDiv.appendChild(cardsDiv);
+
+      const extra = colTasks.length - SHOW_LIMIT;
+      if (extra > 0) {
+        const btn = document.createElement('button');
+        btn.className = 'cards-show-more';
+        btn.textContent = `▼ もっと見る（${extra}件）`;
+        btn.addEventListener('click', () => {
+          const isCollapsed = !!cardsDiv.querySelector('.card-collapsed');
+          if (isCollapsed) {
+            cardsDiv.querySelectorAll('.card-collapsed').forEach(c => c.classList.remove('card-collapsed'));
+            btn.textContent = '▲ 閉じる';
+          } else {
+            Array.from(cardsDiv.children).slice(SHOW_LIMIT).forEach(c => c.classList.add('card-collapsed'));
+            btn.textContent = `▼ もっと見る（${extra}件）`;
+          }
+        });
+        colDiv.appendChild(btn);
+      }
+
       colsDiv.appendChild(colDiv);
     }
 

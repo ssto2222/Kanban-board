@@ -342,6 +342,23 @@ body {
   outline: 2px dashed #5a5aaa;
 }
 
+.card-collapsed { display: none; }
+
+.cards-show-more {
+  display: block;
+  width: 100%;
+  margin-top: 6px;
+  padding: 5px 0;
+  background: none;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  color: var(--subtext);
+  font-size: 11px;
+  cursor: pointer;
+  text-align: center;
+}
+.cards-show-more:hover { background: rgba(255,255,255,0.06); color: #fff; }
+
 .divider-line {
   border: none;
   border-top: 1px solid var(--border);
