@@ -19,6 +19,7 @@ const COL_META = {
 const UNASSIGNED = '（未割り当て）';  // 担当者なしの表示ラベル
 
 let tasks = [];
+let usersCache = [];  // 登録ユーザーキャッシュ（表示名解決用）
 let draggedId  = null;
 let editingTask = null;
 let currentView = 'assignee';
@@ -195,9 +196,24 @@ function switchView(view) {
 // ── API ───────────────────────────────────────────────────────────────────────
 
 async function loadTasks() {
-  const res = await fetch('/api/tasks');
-  tasks = await res.json();
-  switchView(currentView);  // アクティブビューを確定してから描画
+  const [tasksRes, usersRes] = await Promise.all([
+    fetch('/api/tasks'),
+    fetch('/api/users').catch(() => null),
+  ]);
+  tasks = await tasksRes.json();
+  usersCache = usersRes ? await usersRes.json() : [];
+  switchView(currentView);
+}
+
+function fmtAssignee(assignee) {
+  if (!assignee) return '';
+  const user = usersCache.find(u => u.username === assignee);
+  if (user) {
+    return user.display_name && user.display_name !== user.username
+      ? `${user.display_name} (${user.username})`
+      : user.username;
+  }
+  return assignee;
 }
 
 function renderCurrentView() {
@@ -284,7 +300,7 @@ function createCard(task, draggable = false) {
       <button class="card-edit-btn" title="編集">✏️</button>
     </div>
     <div class="card-body">
-      ${task.assignee ? `<div class="card-assignee">👤 ${esc(task.assignee)}</div>` : ''}
+      ${task.assignee ? `<div class="card-assignee">👤 ${esc(fmtAssignee(task.assignee))}</div>` : ''}
       ${deadlineHtml}
       ${task.note ? `<div class="card-note">${esc(task.note)}</div>` : ''}
     </div>
@@ -388,7 +404,7 @@ function renderAssignee() {
     const hdr = document.createElement('div');
     hdr.className = 'assignee-hdr';
     hdr.innerHTML = `
-      <span>${name === UNASSIGNED ? '❓' : '👤'}&nbsp;${esc(name)}</span>
+      <span>${name === UNASSIGNED ? '❓' : '👤'}&nbsp;${name === UNASSIGNED ? esc(name) : esc(fmtAssignee(name))}</span>
       <span class="assignee-count">
         計&nbsp;${memberTasks.length}&nbsp;件&nbsp;｜&nbsp;
         待機&nbsp;${counts.todo}&nbsp;
@@ -814,9 +830,9 @@ function initUserAutocomplete(inputEl, dropdownEl) {
         users.forEach(u => {
           const item = document.createElement('div');
           item.className = 'user-suggestion';
-          item.textContent = u.display_name !== u.username
-            ? `${u.display_name} (@${u.username})`
-            : `@${u.username}`;
+          item.textContent = u.display_name && u.display_name !== u.username
+            ? `${u.display_name} (${u.username})`
+            : u.username;
           item.addEventListener('mousedown', (e) => {
             e.preventDefault();  // blurを防ぐ
             inputEl.value = u.username;
@@ -859,7 +875,7 @@ function renderMyTasks() {
   const hdr = document.createElement('div');
   hdr.className = 'assignee-hdr';
   hdr.innerHTML = `
-    <span>⭐ ${esc((window.CURRENT_USER || {}).display_name || me)}</span>
+    <span>⭐ ${esc(fmtAssignee(me))}</span>
     <span class="assignee-count">
       計&nbsp;${myTasks.length}&nbsp;件&nbsp;｜&nbsp;
       待機&nbsp;${counts.todo}&nbsp;
@@ -1107,10 +1123,8 @@ async function renderManage() {
     row.className = 'manage-row';
     row.innerHTML = `
       <div class="manage-cell manage-name">
-        <span>${esc(label)}</span>
-        ${isLinked
-          ? `<span class="manage-linked">✅ @${esc(key)}</span>`
-          : (key ? '<span class="manage-unlinked">🔴 未紐づけ</span>' : '')}
+        <span>${esc(isLinked ? fmtAssignee(key) : label)}</span>
+        ${isLinked ? '' : (key ? '<span class="manage-unlinked">🔴 未紐づけ</span>' : '')}
       </div>
       <div class="manage-cell manage-count">${count}件</div>
       <div class="manage-cell manage-action">
