@@ -182,6 +182,7 @@ function switchView(view) {
   else if (view === 'assignee')  renderAssignee();
   else if (view === 'timeline')  renderTimeline();
   else if (view === 'mytasks')   renderMyTasks();
+  else if (view === 'manage')    renderManage();
   else if (view === 'new_task')  initNewTaskForm();
 }
 
@@ -198,6 +199,7 @@ function renderCurrentView() {
   else if (currentView === 'assignee')  renderAssignee();
   else if (currentView === 'timeline')  renderTimeline();
   else if (currentView === 'mytasks')   renderMyTasks();
+  else if (currentView === 'manage')    renderManage();
 }
 
 async function apiPut(id, data) {
@@ -1039,6 +1041,123 @@ async function deleteTask() {
   closeModal();
 
   await apiDelete(id);
+}
+
+// ── 担当者管理ビュー ──────────────────────────────────────────────────────────
+
+async function renderManage() {
+  const container = document.getElementById('manage-content');
+  if (!container) return;
+  container.innerHTML = '<p style="padding:24px;color:var(--subtext)">読み込み中...</p>';
+
+  // 登録ユーザー一覧を取得
+  let users = [];
+  try { users = await fetch('/api/users').then(r => r.json()); } catch (_) {}
+  const usernames = new Set(users.map(u => u.username));
+  const userMap   = Object.fromEntries(users.map(u => [u.username, u]));
+
+  // タスクから担当者ごとの件数を集計
+  const groups = {};
+  for (const t of tasks) {
+    const key = t.assignee || '';
+    groups[key] = (groups[key] || 0) + 1;
+  }
+
+  const assignees = Object.keys(groups).sort((a, b) => {
+    if (!a) return 1; if (!b) return -1;
+    return a.localeCompare(b, 'ja');
+  });
+
+  container.innerHTML = '';
+
+  const desc = document.createElement('p');
+  desc.className = 'manage-desc';
+  desc.textContent = '担当者名の「→ 振り替え」で、そのユーザーのタスクを別アカウントに一括移動できます。未紐づけの担当者は登録アカウントと一致していません。';
+  container.appendChild(desc);
+
+  if (!assignees.length) {
+    const empty = document.createElement('p');
+    empty.style.cssText = 'padding:24px;color:var(--subtext)';
+    empty.textContent = 'タスクがありません。';
+    container.appendChild(empty);
+    return;
+  }
+
+  const table = document.createElement('div');
+  table.className = 'manage-table';
+
+  for (const key of assignees) {
+    const isLinked  = !!key && usernames.has(key);
+    const label     = key || '（未割り当て）';
+    const count     = groups[key];
+
+    const row = document.createElement('div');
+    row.className = 'manage-row';
+    row.innerHTML = `
+      <div class="manage-cell manage-name">
+        <span>${esc(label)}</span>
+        ${isLinked
+          ? `<span class="manage-linked">✅ @${esc(key)}</span>`
+          : (key ? '<span class="manage-unlinked">🔴 未紐づけ</span>' : '')}
+      </div>
+      <div class="manage-cell manage-count">${count}件</div>
+      <div class="manage-cell manage-action">
+        <button class="btn-reassign">→ 振り替え</button>
+      </div>
+      <div class="manage-inline" style="display:none">
+        <div class="user-suggestion-wrap">
+          <input type="text" class="reassign-input" placeholder="移動先ユーザーを検索...">
+          <div class="user-suggestions reassign-dropdown" style="display:none"></div>
+        </div>
+        <button class="btn btn-primary btn-reassign-ok">実行</button>
+        <button class="btn btn-cancel btn-reassign-cancel">キャンセル</button>
+      </div>`;
+
+    const btnOpen   = row.querySelector('.btn-reassign');
+    const inline    = row.querySelector('.manage-inline');
+    const inputEl   = row.querySelector('.reassign-input');
+    const dropEl    = row.querySelector('.reassign-dropdown');
+    const btnOk     = row.querySelector('.btn-reassign-ok');
+    const btnCancel = row.querySelector('.btn-reassign-cancel');
+
+    btnOpen.addEventListener('click', () => {
+      inline.style.display = 'flex';
+      btnOpen.style.display = 'none';
+      inputEl.focus();
+      initUserAutocomplete(inputEl, dropEl);
+    });
+
+    btnCancel.addEventListener('click', () => {
+      inline.style.display = 'none';
+      btnOpen.style.display = '';
+      inputEl.value = '';
+      dropEl.style.display = 'none';
+    });
+
+    btnOk.addEventListener('click', async () => {
+      const toVal = inputEl.value.trim();
+      if (!toVal) { inputEl.focus(); return; }
+      btnOk.disabled = true;
+      btnOk.textContent = '更新中...';
+      try {
+        await fetch('/api/tasks/reassign', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ from: key, to: toVal }),
+        });
+        // ローカルの tasks も即時更新
+        tasks.forEach(t => { if ((t.assignee || '') === key) t.assignee = toVal; });
+        renderManage();
+      } catch (_) {
+        btnOk.disabled = false;
+        btnOk.textContent = '実行';
+      }
+    });
+
+    table.appendChild(row);
+  }
+
+  container.appendChild(table);
 }
 
 // ── タイムライン インタラクション ─────────────────────────────────────────────

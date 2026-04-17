@@ -245,6 +245,32 @@ def get_tasks():
     return jsonify(load_tasks())
 
 
+@app.route("/api/tasks/reassign", methods=["POST"])
+def reassign_tasks():
+    data = request.get_json()
+    from_val = data.get("from", "")
+    to_val   = data.get("to", "")
+    if to_val is None:
+        return jsonify({"error": "to is required"}), 400
+
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            res = supabase.table("tasks").update({"assignee": to_val}).eq("assignee", from_val).execute()
+            return jsonify({"updated": len(res.data or [])})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    tasks_data = _file_load()
+    count = 0
+    for t in tasks_data:
+        if t.get("assignee", "") == from_val:
+            t["assignee"] = to_val
+            count += 1
+    _file_save(tasks_data)
+    return jsonify({"updated": count})
+
+
 @app.route("/api/assignees", methods=["GET"])
 def get_assignees():
     tasks = load_tasks()
