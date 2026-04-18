@@ -192,6 +192,23 @@ def _delete_task_file(task_id):
     _file_save(tasks)
 
 
+# ── 起動時シードユーザー ──────────────────────────────────────────────────────
+# INIT_USERNAME / INIT_PASSWORD 環境変数が設定されている場合、
+# 起動時にそのユーザーを作成する（既存の場合はスキップ）。
+# デプロイ後にファイルストレージが消えても必ずログインできるようにするため。
+
+def _ensure_seed_user():
+    username     = os.environ.get("INIT_USERNAME", "").strip()
+    password     = os.environ.get("INIT_PASSWORD", "").strip()
+    display_name = os.environ.get("INIT_DISPLAY_NAME", "").strip()
+    if not username or not password:
+        return
+    if not find_user(username):
+        create_user(username, display_name or username, password)
+
+_ensure_seed_user()
+
+
 # ── ルート ────────────────────────────────────────────────────────────────────
 
 @app.route("/")
