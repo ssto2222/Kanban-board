@@ -32,6 +32,8 @@ let tlMinDt   = null;   // 現在の表示ウィンドウ開始日時
 let tlTotalMs = null;   // 表示ウィンドウの総ミリ秒
 let tlDrag    = null;   // バードラッグ中の状態オブジェクト
 let tlRowDrag = null;   // 行並び替えDnD用 { row, wrap, orderKey }
+let tlColDrag = null;   // 名前列リサイズDnD用 { wrap, startX, startW }
+let tlNameWidth = 150;  // 名前列の現在幅(px)
 let tlCustomOrder = {}; // { orderKey: [rowId,...] } カスタム行順序
 let myTasksMode = 'card'; // マイタスクビュー: 'card'|'timeline'
 let myTasksSpan = '2w';   // マイタスクタイムラインのスパン
@@ -809,7 +811,7 @@ function renderTimeline() {
   let h = `<div class="tl-wrap" data-order-key="${orderKey}">`;
 
   // 軸行
-  h += '<div class="tl-axis-row"><div class="tl-group-col"></div><div class="tl-chart-col">';
+  h += '<div class="tl-axis-row"><div class="tl-group-col"><div class="tl-col-resize" title="ドラッグで列幅を調整"></div></div><div class="tl-chart-col">';
   for (const { p, label, cls } of ticks) {
     h += `<div class="tl-tick ${cls}" style="left:${p.toFixed(2)}%">${label}</div>`;
   }
@@ -876,6 +878,7 @@ function renderTimeline() {
   h += '</div>';
 
   container.innerHTML = h;
+  applyTlNameWidth(container);
 }
 
 // ── 新規タスクフォーム ────────────────────────────────────────────────────────
@@ -1128,7 +1131,7 @@ function renderMyTasksTimeline(me, myTasks, container) {
   const todayPct = getPct(today);
 
   let h = `<div class="tl-wrap" data-order-key="${orderKey}">`;
-  h += '<div class="tl-axis-row"><div class="tl-group-col"></div><div class="tl-chart-col">';
+  h += '<div class="tl-axis-row"><div class="tl-group-col"><div class="tl-col-resize" title="ドラッグで列幅を調整"></div></div><div class="tl-chart-col">';
   for (const { p, label, cls } of ticks) h += `<div class="tl-tick ${cls}" style="left:${p.toFixed(2)}%">${label}</div>`;
   h += '</div></div>';
 
@@ -1164,6 +1167,7 @@ function renderMyTasksTimeline(me, myTasks, container) {
   scroll.className = 'view-scroll mytl-scroll';
   scroll.innerHTML = h;
   container.appendChild(scroll);
+  applyTlNameWidth(scroll);
 }
 
 function toggleMilestone() {
@@ -1483,6 +1487,7 @@ function fmtDatetimeLocal(isoStr) {
 }
 
 function onTlPointerDown(e) {
+  if (e.target.closest('.tl-col-resize')) { startTlColResize(e); return; }
   if (e.target.closest('.tl-row-handle')) { startTlRowDrag(e); return; }
   const bar = e.target.closest('.tl-bar-outer, .tl-ms-pos');
   if (!bar || !tlMinDt) return;
@@ -1515,6 +1520,7 @@ function onTlPointerDown(e) {
 }
 
 function onTlPointerMove(e) {
+  if (tlColDrag) { resizeTlCol(e); return; }
   if (tlRowDrag) { moveRowDrag(e); return; }
   if (!tlDrag) return;
 
@@ -1550,6 +1556,7 @@ function renderCurrentTl() {
 }
 
 async function onTlPointerUp(e) {
+  if (tlColDrag) { tlColDrag = null; return; }
   if (tlRowDrag) { endRowDrag(); return; }
   if (!tlDrag) return;
 
@@ -1600,6 +1607,31 @@ async function onTlPointerUp(e) {
   Object.assign(task, updates);
   renderCurrentTl();
   await apiPut(taskId, updates);
+}
+
+// ── タイムライン名列リサイズ ──────────────────────────────────────────────────
+
+function startTlColResize(e) {
+  const wrap = e.target.closest('.tl-wrap');
+  if (!wrap) return;
+  e.preventDefault();
+  tlColDrag = { wrap, startX: e.clientX, startW: tlNameWidth };
+}
+
+function resizeTlCol(e) {
+  const newW = Math.max(80, Math.min(500, tlColDrag.startW + e.clientX - tlColDrag.startX));
+  tlNameWidth = newW;
+  tlColDrag.wrap.querySelectorAll('.tl-group-name, .tl-group-col').forEach(el => {
+    el.style.width = `${newW}px`;
+    el.style.minWidth = `${newW}px`;
+  });
+}
+
+function applyTlNameWidth(container) {
+  container.querySelectorAll('.tl-group-name, .tl-group-col').forEach(el => {
+    el.style.width = `${tlNameWidth}px`;
+    el.style.minWidth = `${tlNameWidth}px`;
+  });
 }
 
 // ── タイムライン行並び替えDnD ──────────────────────────────────────────────────

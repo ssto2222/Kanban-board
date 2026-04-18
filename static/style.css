@@ -622,7 +622,7 @@ body {
 .tl-wrap        { background: var(--bg); border-radius: 8px; padding: 8px 0; min-width: 700px; }
 /* 軸行: 日次2行ラベル(~28px)が収まるよう50px確保 */
 .tl-axis-row    { display: flex; align-items: stretch; height: 50px; border-bottom: 2px solid #555; }
-.tl-group-col   { width: 150px; min-width: 150px; flex-shrink: 0; }
+.tl-group-col   { width: 150px; min-width: 150px; flex-shrink: 0; position: relative; }
 .tl-chart-col   { flex: 1; position: relative; min-width: 600px; overflow: hidden; }
 /* 目盛りラベル: bottom基準で明示配置、はみ出しを visible に */
 .tl-tick        { position: absolute; bottom: 4px; font-size: 10px; color: var(--subtext); text-align: center; transform: translateX(-50%); line-height: 1.4; white-space: nowrap; }
@@ -644,6 +644,13 @@ body {
 .tl-handle-left  { left: 0; }
 .tl-handle-right { right: 0; }
 .tl-empty       { padding: 48px 20px; text-align: center; color: var(--subtext); line-height: 2; }
+
+/* 名前列リサイズハンドル */
+.tl-col-resize {
+  position: absolute; right: -4px; top: 0; bottom: 0; width: 8px;
+  cursor: col-resize; z-index: 20; background: transparent; touch-action: none;
+}
+.tl-col-resize:hover, .tl-col-resize:active { background: rgba(76,201,240,0.45); }
 
 /* 行並び替えハンドル */
 .tl-row-handle {
