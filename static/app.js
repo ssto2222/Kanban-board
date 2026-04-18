@@ -1067,6 +1067,7 @@ function renderMyTasksTimeline(me, myTasks, container) {
   const customOrd = tlCustomOrder[orderKey] || [];
   const rows = [];
   for (const t of myTasks) {
+    if (t.column === 'done') continue;
     const isMs = isMsTask(t);
     let start, end;
     if (isMs) {
