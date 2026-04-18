@@ -301,6 +301,21 @@ def get_users():
     return jsonify(result)
 
 
+@app.route("/api/users/<username>", methods=["DELETE"])
+def delete_user(username):
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            supabase.table("users").delete().eq("username", username).execute()
+            return jsonify({"ok": True})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    users = _users_file_load()
+    users = [u for u in users if u.get("username") != username]
+    _users_file_save(users)
+    return jsonify({"ok": True})
+
 @app.route("/api/tasks", methods=["POST"])
 def create_task():
     data = request.get_json()

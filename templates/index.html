@@ -26,6 +26,7 @@
         {% if current_user %}
         <button class="nav-btn" data-view="mytasks">⭐ マイタスク</button>
         {% endif %}
+        <button class="nav-btn" data-view="reassign">🔀 タスク振り替え</button>
         <button class="nav-btn" data-view="manage">🔧 担当者管理</button>
         <button class="nav-btn" data-view="new_task">➕ 新規タスク</button>
       </div>
@@ -134,6 +135,15 @@
           <h2>⭐ マイタスク</h2>
         </div>
         <div id="mytasks-content" class="view-scroll"></div>
+      </div>
+
+      <!-- タスク振り替えビュー -->
+      <div id="view-reassign" class="view">
+        <div class="view-header">
+          <h2>🔀 タスク振り替え</h2>
+          <p class="view-desc">カードをドラッグして担当者列に移動すると担当者が変わります。</p>
+        </div>
+        <div id="reassign-content" class="view-scroll reassign-scroll"></div>
       </div>
 
       <!-- 担当者管理ビュー -->

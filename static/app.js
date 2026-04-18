@@ -189,6 +189,7 @@ function switchView(view) {
   else if (view === 'assignee')  renderAssignee();
   else if (view === 'timeline')  renderTimeline();
   else if (view === 'mytasks')   renderMyTasks();
+  else if (view === 'reassign')  renderReassign();
   else if (view === 'manage')    renderManage();
   else if (view === 'new_task')  initNewTaskForm();
 }
@@ -221,6 +222,7 @@ function renderCurrentView() {
   else if (currentView === 'assignee')  renderAssignee();
   else if (currentView === 'timeline')  renderTimeline();
   else if (currentView === 'mytasks')   renderMyTasks();
+  else if (currentView === 'reassign')  renderReassign();
   else if (currentView === 'manage')    renderManage();
 }
 
@@ -503,6 +505,65 @@ async function handleAssigneeDrop(target) {
   await apiPut(task.id, updates);  // DB 書き込み
 }
 
+async function handleUserColDrop(target) {
+  if (!draggedId) return;
+  const task = tasks.find(t => t.id === draggedId);
+  if (!task) { draggedId = null; return; }
+
+  const newAssignee = target.dataset.user;  // 空文字 = 未割り当て
+  if ((task.assignee || '') === newAssignee) { draggedId = null; return; }
+
+  task.assignee = newAssignee;
+  draggedId = null;
+  renderReassign();
+  await apiPut(task.id, { assignee: newAssignee });
+}
+
+// ── タスク振り替えビュー ───────────────────────────────────────────────────────
+
+async function renderReassign() {
+  const container = document.getElementById('reassign-content');
+  if (!container) return;
+
+  try { usersCache = await fetch('/api/users').then(r => r.json()); } catch (_) {}
+
+  const cols = [
+    ...usersCache.map(u => ({ key: u.username, label: fmtAssignee(u.username) })),
+    { key: '', label: '（未割り当て）' },
+  ];
+
+  container.innerHTML = '';
+  const board = document.createElement('div');
+  board.className = 'reassign-board';
+
+  for (const { key, label } of cols) {
+    const colTasks = tasks.filter(t => (t.assignee || '') === key);
+
+    const col = document.createElement('div');
+    col.className = 'user-col';
+
+    const hdrBg = key ? '#0f3460' : '#2a2a4a';
+    col.innerHTML = `
+      <div class="user-col-hdr" style="background:${hdrBg}">
+        <span class="user-col-name">${esc(label)}</span>
+        <span class="badge">${colTasks.length}</span>
+      </div>`;
+
+    const cardsWrap = document.createElement('div');
+    cardsWrap.className = 'user-col-cards';
+    cardsWrap.dataset.user = key;
+
+    for (const task of colTasks) {
+      cardsWrap.appendChild(createCard(task, true));
+    }
+
+    col.appendChild(cardsWrap);
+    board.appendChild(col);
+  }
+
+  container.appendChild(board);
+}
+
 // ── サイドバー開閉 (モバイル) ──────────────────────────────────────────────────
 
 // ── スクロールロック (iOS Safari 対応) ────────────────────────────────────────
@@ -590,9 +651,11 @@ function onCardPointerMove(e) {
     const el = document.elementFromPoint(e.clientX, e.clientY);
     gh.style.display = '';
 
-    document.querySelectorAll('.column[data-col], .assignee-cards[data-col]')
+    document.querySelectorAll('.column[data-col], .assignee-cards[data-col], .user-col-cards[data-user]')
       .forEach(c => c.classList.remove('highlight'));
-    const tgt = el?.closest('.column[data-col]') ?? el?.closest('.assignee-cards[data-col]');
+    const tgt = el?.closest('.column[data-col]')
+             ?? el?.closest('.assignee-cards[data-col]')
+             ?? el?.closest('.user-col-cards[data-user]');
     if (tgt) tgt.classList.add('highlight');
   }
 }
@@ -604,7 +667,7 @@ async function onCardPointerUp(e) {
   cardDrag = null;
 
   card.classList.remove('dragging');
-  document.querySelectorAll('.column, .assignee-cards').forEach(c => c.classList.remove('highlight'));
+  document.querySelectorAll('.column, .assignee-cards, .user-col-cards').forEach(c => c.classList.remove('highlight'));
 
   if (!moved) {
     if (ghost) ghost.remove();
@@ -624,9 +687,11 @@ async function onCardPointerUp(e) {
 
   const colTarget      = dropEl?.closest('.column[data-col]');
   const assigneeTarget = dropEl?.closest('.assignee-cards[data-col]');
+  const userColTarget  = dropEl?.closest('.user-col-cards[data-user]');
 
-  if (colTarget)      await handleDrop(colTarget.dataset.col);
+  if (colTarget)           await handleDrop(colTarget.dataset.col);
   else if (assigneeTarget) await handleAssigneeDrop(assigneeTarget);
+  else if (userColTarget)  await handleUserColDrop(userColTarget);
   else draggedId = null;
 }
 
@@ -1129,6 +1194,7 @@ async function renderManage() {
       <div class="manage-cell manage-count">${count}件</div>
       <div class="manage-cell manage-action">
         <button class="btn-reassign">→ 振り替え</button>
+        ${isLinked ? '<button class="btn-user-delete" title="ユーザーを削除">🗑</button>' : ''}
       </div>
       <div class="manage-inline" style="display:none">
         <div class="user-suggestion-wrap">
@@ -1137,14 +1203,25 @@ async function renderManage() {
         </div>
         <button class="btn btn-primary btn-reassign-ok">実行</button>
         <button class="btn btn-cancel btn-reassign-cancel">キャンセル</button>
+      </div>
+      <div class="manage-delete-confirm" style="display:none">
+        <span class="delete-confirm-msg">⚠️ ${esc(fmtAssignee(key))} を削除しますか？（担当タスクは残ります）</span>
+        <div class="delete-confirm-btns">
+          <button class="btn btn-cancel btn-udel-cancel">いいえ</button>
+          <button class="btn btn-danger btn-udel-ok">削除する</button>
+        </div>
       </div>`;
 
-    const btnOpen   = row.querySelector('.btn-reassign');
-    const inline    = row.querySelector('.manage-inline');
-    const inputEl   = row.querySelector('.reassign-input');
-    const dropEl    = row.querySelector('.reassign-dropdown');
-    const btnOk     = row.querySelector('.btn-reassign-ok');
-    const btnCancel = row.querySelector('.btn-reassign-cancel');
+    const btnOpen      = row.querySelector('.btn-reassign');
+    const inline       = row.querySelector('.manage-inline');
+    const inputEl      = row.querySelector('.reassign-input');
+    const dropEl       = row.querySelector('.reassign-dropdown');
+    const btnOk        = row.querySelector('.btn-reassign-ok');
+    const btnCancel    = row.querySelector('.btn-reassign-cancel');
+    const btnDel       = row.querySelector('.btn-user-delete');
+    const delConfirm   = row.querySelector('.manage-delete-confirm');
+    const btnUdelOk    = row.querySelector('.btn-udel-ok');
+    const btnUdelCancel = row.querySelector('.btn-udel-cancel');
 
     btnOpen.addEventListener('click', () => {
       inline.style.display = 'flex';
@@ -1179,6 +1256,30 @@ async function renderManage() {
         btnOk.textContent = '実行';
       }
     });
+
+    // ユーザー削除
+    if (btnDel && delConfirm) {
+      btnDel.addEventListener('click', () => {
+        delConfirm.style.display = 'flex';
+        btnDel.style.display = 'none';
+      });
+      btnUdelCancel.addEventListener('click', () => {
+        delConfirm.style.display = 'none';
+        btnDel.style.display = '';
+      });
+      btnUdelOk.addEventListener('click', async () => {
+        btnUdelOk.disabled = true;
+        btnUdelOk.textContent = '削除中...';
+        try {
+          await fetch(`/api/users/${encodeURIComponent(key)}`, { method: 'DELETE' });
+          usersCache = usersCache.filter(u => u.username !== key);
+          renderManage();
+        } catch (_) {
+          btnUdelOk.disabled = false;
+          btnUdelOk.textContent = '削除する';
+        }
+      });
+    }
 
     table.appendChild(row);
   }
