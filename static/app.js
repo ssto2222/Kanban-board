@@ -537,7 +537,7 @@ async function renderReassign() {
   board.className = 'reassign-board';
 
   for (const { key, label } of cols) {
-    const colTasks = tasks.filter(t => (t.assignee || '') === key);
+    const colTasks = tasks.filter(t => (t.assignee || '') === key && t.column !== 'done');
 
     const col = document.createElement('div');
     col.className = 'user-col';
