@@ -3,10 +3,19 @@ from functools import wraps
 import json
 import os
 import uuid
-from datetime import date, datetime, timezone
+from datetime import date, datetime, timezone, timedelta
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev-secret-change-me-in-prod")
+
+# セッションをブラウザを閉じても保持する（デフォルト30日、環境変数で変更可）
+_session_days = int(os.environ.get("SESSION_DAYS", "30"))
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=_session_days)
+app.config["SESSION_COOKIE_HTTPONLY"]    = True   # JS からクッキーを読めないようにする
+app.config["SESSION_COOKIE_SAMESITE"]   = "Lax"  # CSRF 軽減
+# HTTPS 環境では Secure フラグを有効化（本番用）
+if os.environ.get("FLASK_ENV") == "production" or os.environ.get("SESSION_COOKIE_SECURE"):
+    app.config["SESSION_COOKIE_SECURE"] = True
 
 SAVE_FILE  = os.path.join(os.path.expanduser("~"), ".sticky_kanban.json")
 USERS_FILE = os.path.join(os.path.expanduser("~"), ".sticky_kanban_users.json")
@@ -199,8 +208,9 @@ def login():
         password = request.form.get("password", "")
         user = check_password(username, password)
         if user:
-            session["user_id"]  = user["id"]
-            session["username"] = user["username"]
+            session.permanent       = True
+            session["user_id"]      = user["id"]
+            session["username"]     = user["username"]
             session["display_name"] = user.get("display_name", username)
             return redirect(url_for("index") + "?view=mytasks")
         error = "ユーザー名またはパスワードが正しくありません"
@@ -226,6 +236,7 @@ def register():
             error = "そのユーザー名は既に使われています"
         else:
             user = create_user(username, display_name, password)
+            session.permanent       = True
             session["user_id"]      = user["id"]
             session["username"]     = user["username"]
             session["display_name"] = user.get("display_name", username)
