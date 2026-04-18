@@ -30,7 +30,11 @@ let _scrollY   = 0;      // スクロールロック用保存値
 // タイムラインのドラッグ操作用モジュール変数
 let tlMinDt   = null;   // 現在の表示ウィンドウ開始日時
 let tlTotalMs = null;   // 表示ウィンドウの総ミリ秒
-let tlDrag    = null;   // ドラッグ中の状態オブジェクト
+let tlDrag    = null;   // バードラッグ中の状態オブジェクト
+let tlRowDrag = null;   // 行並び替えDnD用 { row, wrap, orderKey }
+let tlCustomOrder = {}; // { orderKey: [rowId,...] } カスタム行順序
+let myTasksMode = 'card'; // マイタスクビュー: 'card'|'timeline'
+let myTasksSpan = '2w';   // マイタスクタイムラインのスパン
 
 // ── 初期化 ────────────────────────────────────────────────────────────────────
 
@@ -163,6 +167,7 @@ function bindEvents() {
 
   // タイムラインのバーのドラッグ・リサイズ（イベント委譲）
   document.getElementById('timeline-content').addEventListener('pointerdown', onTlPointerDown);
+  document.getElementById('mytasks-content').addEventListener('pointerdown', onTlPointerDown);
   document.addEventListener('pointermove',   onTlPointerMove);
   document.addEventListener('pointerup',     onTlPointerUp);
   // pointercancel: iOSがスクロール等でタッチをキャンセルした際のゴーストを確実に削除
@@ -798,7 +803,10 @@ function renderTimeline() {
   const BAR_H   = 22;  // バーの高さ(px)
   const BAR_PAD = (LANE_H - BAR_H) / 2;  // レーン内の上余白
 
-  let h = '<div class="tl-wrap">';
+  const orderKey  = `tl-${groupBy}`;
+  const customOrd = tlCustomOrder[orderKey] || [];
+
+  let h = `<div class="tl-wrap" data-order-key="${orderKey}">`;
 
   // 軸行
   h += '<div class="tl-axis-row"><div class="tl-group-col"></div><div class="tl-chart-col">';
@@ -808,11 +816,16 @@ function renderTimeline() {
   h += '</div></div>';
 
   // データ行（グループごとにレーン数分の高さを確保して重なりを防止）
-  // マイルストーングループを先頭に
   const todayPct = getPct(today);
   const sortedGroups = Object.keys(groupMap).sort((a, b) => {
     if (a === MS_GROUP) return -1;
     if (b === MS_GROUP) return  1;
+    if (customOrd.length) {
+      const ia = customOrd.indexOf(a), ib = customOrd.indexOf(b);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1;
+      if (ib !== -1) return  1;
+    }
     return a.localeCompare(b, 'ja');
   });
 
@@ -820,8 +833,8 @@ function renderTimeline() {
     const bars  = groupMap[grp];
     const rowH  = bars.length * LANE_H + 8;
 
-    h += `<div class="tl-row" style="height:${rowH}px">`;
-    h += `<div class="tl-group-name" style="height:${rowH}px">${esc(grp)}</div>`;
+    h += `<div class="tl-row" data-row-id="${esc(grp)}" style="height:${rowH}px">`;
+    h += `<div class="tl-group-name" style="height:${rowH}px"><span class="tl-row-handle" title="ドラッグで並べ替え">⠿</span>${esc(grp)}</div>`;
     h += `<div class="tl-chart-area" style="height:${rowH}px">`;
 
     for (const { p } of ticks) {
@@ -947,7 +960,21 @@ function renderMyTasks() {
       進行&nbsp;${counts.wip}&nbsp;
       完了&nbsp;${counts.done}
     </span>`;
+
+  const toggleBtn = document.createElement('button');
+  toggleBtn.className = 'mytasks-toggle';
+  toggleBtn.textContent = myTasksMode === 'card' ? '📅 タイムライン' : '📋 カード';
+  toggleBtn.addEventListener('click', () => {
+    myTasksMode = myTasksMode === 'card' ? 'timeline' : 'card';
+    renderMyTasks();
+  });
+  hdr.appendChild(toggleBtn);
   container.appendChild(hdr);
+
+  if (myTasksMode === 'timeline') {
+    renderMyTasksTimeline(me, myTasks, container);
+    return;
+  }
 
   const colsDiv = document.createElement('div');
   colsDiv.className = 'assignee-cols';
@@ -997,6 +1024,145 @@ function renderMyTasks() {
   }
 
   container.appendChild(colsDiv);
+}
+
+// ── マイタスク個別タイムライン ────────────────────────────────────────────────
+
+function renderMyTasksTimeline(me, myTasks, container) {
+  // スパン選択
+  const ctrl = document.createElement('div');
+  ctrl.className = 'mytl-controls';
+  ctrl.innerHTML = `<label>期間: <select class="mytl-span-sel">
+    <option value="2w">2週間</option>
+    <option value="2m">2ヶ月</option>
+    <option value="6m">半年</option>
+    <option value="1y">1年</option>
+  </select></label>`;
+  container.appendChild(ctrl);
+  const spanEl = ctrl.querySelector('.mytl-span-sel');
+  spanEl.value = myTasksSpan;
+  spanEl.addEventListener('change', () => { myTasksSpan = spanEl.value; renderMyTasks(); });
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const SPAN_CONFIG = {
+    '2w': { before:  2, after:  14, step:  1, showDow: true  },
+    '2m': { before:  7, after:  60, step:  7, showDow: false },
+    '6m': { before: 14, after: 180, step: 14, showDow: false },
+    '1y': { before: 30, after: 365, step: 30, showDow: false },
+  };
+  const cfg = SPAN_CONFIG[myTasksSpan] || SPAN_CONFIG['2w'];
+  const DAY = 86400000;
+  const minDt   = new Date(today.getTime() - cfg.before * DAY);
+  const maxDt   = new Date(today.getTime() + cfg.after  * DAY);
+  const totalMs = maxDt - minDt;
+  const getPct  = dt => (dt - minDt) / totalMs * 100;
+
+  // バードラッグ用にモジュール変数を更新
+  tlMinDt   = minDt;
+  tlTotalMs = totalMs;
+
+  // 表示対象タスクをバーデータに変換
+  const orderKey  = 'mytasks';
+  const customOrd = tlCustomOrder[orderKey] || [];
+  const rows = [];
+  for (const t of myTasks) {
+    const isMs = isMsTask(t);
+    let start, end;
+    if (isMs) {
+      const dl = t.deadline ? new Date(t.deadline) : null;
+      if (!dl) continue;
+      start = dl; end = new Date(dl.getTime() + DAY);
+    } else {
+      start = t.started_at  ? new Date(t.started_at)  : null;
+      end   = t.finished_at ? new Date(t.finished_at) : null;
+      const dl = t.deadline ? new Date(t.deadline) : null;
+      if (!start && !dl) continue;
+      if (!start) { start = new Date(dl); start.setDate(start.getDate() - 7); }
+      if (!end)   { end   = new Date(start); end.setHours(end.getHours() + 23); }
+    }
+    if (end < minDt || start > maxDt) continue;
+    rows.push({ id: t.id, title: t.title, start, end,
+      color: isMs ? (t.color || '#E94560') : getPriorityColor(t.deadline, t.color),
+      isMs, status: t.column });
+  }
+
+  if (!rows.length) {
+    const empty = document.createElement('div');
+    empty.className = 'tl-empty';
+    empty.textContent = '期限または作業期間が設定されたタスクがありません。';
+    container.appendChild(empty);
+    return;
+  }
+
+  // カスタム順序を適用
+  if (customOrd.length) {
+    rows.sort((a, b) => {
+      const ia = customOrd.indexOf(a.id), ib = customOrd.indexOf(b.id);
+      if (ia !== -1 && ib !== -1) return ia - ib;
+      if (ia !== -1) return -1; if (ib !== -1) return 1;
+      return 0;
+    });
+  }
+
+  // 目盛り生成
+  const WD = ['月','火','水','木','金','土','日'];
+  const ticks = [];
+  const curr = new Date(minDt); curr.setHours(0,0,0,0);
+  while (curr <= maxDt) {
+    const p = getPct(curr);
+    if (p >= 0 && p <= 100) {
+      const wd = WD[curr.getDay() === 0 ? 6 : curr.getDay() - 1];
+      const mm = String(curr.getMonth()+1).padStart(2,'0');
+      const dd = String(curr.getDate()).padStart(2,'0');
+      const label = cfg.showDow ? `${mm}/${dd}<br>${wd}` : `${mm}/${dd}`;
+      const cls = cfg.showDow && curr.getDay()===6 ? 'sat'
+                : cfg.showDow && curr.getDay()===0 ? 'sun' : '';
+      ticks.push({ p, label, cls });
+    }
+    curr.setDate(curr.getDate() + cfg.step);
+  }
+
+  const LANE_H = 36, BAR_H = 22, BAR_PAD = (LANE_H - BAR_H) / 2;
+  const todayPct = getPct(today);
+
+  let h = `<div class="tl-wrap" data-order-key="${orderKey}">`;
+  h += '<div class="tl-axis-row"><div class="tl-group-col"></div><div class="tl-chart-col">';
+  for (const { p, label, cls } of ticks) h += `<div class="tl-tick ${cls}" style="left:${p.toFixed(2)}%">${label}</div>`;
+  h += '</div></div>';
+
+  for (const r of rows) {
+    const rowH = LANE_H + 8;
+    const icon = COL_META[r.status]?.label?.split(' ')[0] || '';
+    h += `<div class="tl-row" data-row-id="${esc(r.id)}" style="height:${rowH}px">`;
+    h += `<div class="tl-group-name mytl-task-row" style="height:${rowH}px">`;
+    h += `<span class="tl-row-handle" title="ドラッグで並べ替え">⠿</span>`;
+    h += `<span class="mytl-task-name" title="${esc(r.title)}">${icon} ${esc(r.title)}</span>`;
+    h += '</div>';
+    h += `<div class="tl-chart-area" style="height:${rowH}px">`;
+    for (const { p } of ticks) h += `<div class="tl-gridline" style="left:${p.toFixed(2)}%"></div>`;
+    if (todayPct >= 0 && todayPct <= 100) h += `<div class="tl-today-line" style="left:${todayPct.toFixed(2)}%"></div>`;
+
+    if (r.isMs) {
+      const dlPct = getPct(r.start), ctrY = 4 + LANE_H / 2;
+      const lbl = esc(r.title.replace(/^🔷\s*/, ''));
+      h += `<div class="tl-ms-pos" data-id="${esc(r.id)}" title="${lbl}" style="left:${dlPct.toFixed(2)}%;top:${ctrY}px">`;
+      h += `<div class="tl-ms-diamond"></div><span class="tl-ms-label">${lbl}</span></div>`;
+    } else {
+      const left = getPct(r.start), width = Math.max(getPct(r.end) - left, 1.5);
+      h += `<div class="tl-bar-outer" data-id="${esc(r.id)}" style="left:${left.toFixed(2)}%;width:${width.toFixed(2)}%;top:${BAR_PAD}px;height:${BAR_H}px">`;
+      h += `<div class="tl-resize-handle tl-handle-left"></div>`;
+      h += `<div class="tl-bar-fill" style="background:${r.color}"><span class="tl-bar-name">${esc(r.title)}</span></div>`;
+      h += `<div class="tl-resize-handle tl-handle-right"></div></div>`;
+    }
+    h += '</div></div>';
+  }
+  h += '</div>';
+
+  const scroll = document.createElement('div');
+  scroll.className = 'view-scroll mytl-scroll';
+  scroll.innerHTML = h;
+  container.appendChild(scroll);
 }
 
 function toggleMilestone() {
@@ -1316,6 +1482,7 @@ function fmtDatetimeLocal(isoStr) {
 }
 
 function onTlPointerDown(e) {
+  if (e.target.closest('.tl-row-handle')) { startTlRowDrag(e); return; }
   const bar = e.target.closest('.tl-bar-outer, .tl-ms-pos');
   if (!bar || !tlMinDt) return;
 
@@ -1347,6 +1514,7 @@ function onTlPointerDown(e) {
 }
 
 function onTlPointerMove(e) {
+  if (tlRowDrag) { moveRowDrag(e); return; }
   if (!tlDrag) return;
 
   const rect     = tlDrag.chartArea.getBoundingClientRect();
@@ -1375,7 +1543,13 @@ function onTlPointerMove(e) {
   }
 }
 
+function renderCurrentTl() {
+  if (currentView === 'mytasks') renderMyTasks();
+  else renderTimeline();
+}
+
 async function onTlPointerUp(e) {
+  if (tlRowDrag) { endRowDrag(); return; }
   if (!tlDrag) return;
 
   const { type, taskId, bar, moved, isMilestone } = tlDrag;
@@ -1402,7 +1576,7 @@ async function onTlPointerUp(e) {
     const newDeadline = tlPctToDay(parseFloat(bar.style.left));
     const dlStr = newDeadline.toISOString().split('T')[0];
     Object.assign(task, { deadline: dlStr });
-    renderTimeline();
+    renderCurrentTl();
     await apiPut(taskId, { deadline: dlStr });
     return;
   }
@@ -1419,12 +1593,44 @@ async function onTlPointerUp(e) {
   const updates = {
     started_at:  newStart.toISOString(),
     finished_at: newEnd.toISOString(),
-    deadline:    newEnd.toISOString().split('T')[0],  // 期限を終了日に合わせる
+    deadline:    newEnd.toISOString().split('T')[0],
   };
 
   Object.assign(task, updates);
-  renderTimeline();
+  renderCurrentTl();
   await apiPut(taskId, updates);
+}
+
+// ── タイムライン行並び替えDnD ──────────────────────────────────────────────────
+
+function startTlRowDrag(e) {
+  const row = e.target.closest('.tl-row[data-row-id]');
+  if (!row) return;
+  const wrap = row.parentElement;
+  e.preventDefault();
+  row.classList.add('tl-row-dragging');
+  tlRowDrag = { row, wrap, orderKey: wrap.dataset.orderKey };
+}
+
+function moveRowDrag(e) {
+  const { row, wrap } = tlRowDrag;
+  const allRows = [...wrap.querySelectorAll('.tl-row[data-row-id]')];
+  let insertBefore = null;
+  for (const r of allRows) {
+    if (r === row) continue;
+    const rect = r.getBoundingClientRect();
+    if (e.clientY < rect.top + rect.height / 2) { insertBefore = r; break; }
+  }
+  insertBefore ? wrap.insertBefore(row, insertBefore) : wrap.appendChild(row);
+}
+
+function endRowDrag() {
+  const { row, wrap, orderKey } = tlRowDrag;
+  row.classList.remove('tl-row-dragging');
+  if (orderKey) {
+    tlCustomOrder[orderKey] = [...wrap.querySelectorAll('.tl-row[data-row-id]')].map(r => r.dataset.rowId);
+  }
+  tlRowDrag = null;
 }
 
 // ── ヘルパー ──────────────────────────────────────────────────────────────────

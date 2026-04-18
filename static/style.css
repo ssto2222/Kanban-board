@@ -645,6 +645,32 @@ body {
 .tl-handle-right { right: 0; }
 .tl-empty       { padding: 48px 20px; text-align: center; color: var(--subtext); line-height: 2; }
 
+/* 行並び替えハンドル */
+.tl-row-handle {
+  cursor: grab; color: var(--subtext); font-size: 14px; padding: 0 6px 0 0;
+  flex-shrink: 0; user-select: none; touch-action: none; line-height: 1;
+}
+.tl-row-handle:hover { color: var(--text); }
+.tl-row-handle:active { cursor: grabbing; }
+.tl-row-dragging { opacity: 0.55; outline: 1px dashed #4CC9F0; }
+
+/* マイタスクタイムライン */
+.mytasks-toggle {
+  margin-left: auto; background: var(--border); border: none; color: var(--text);
+  border-radius: 6px; padding: 5px 12px; font-size: 12px; cursor: pointer; white-space: nowrap;
+}
+.mytasks-toggle:hover { background: #2a2a6a; }
+.mytl-controls {
+  padding: 10px 20px; font-size: 12px; color: var(--subtext); flex-shrink: 0;
+}
+.mytl-controls select {
+  background: var(--entry-bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 5px; padding: 3px 6px; font-size: 12px; margin-left: 6px;
+}
+.mytl-scroll { overflow-x: auto; flex: 1; }
+.mytl-task-name { font-size: 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mytl-task-row { padding-top: 8px; gap: 4px; }
+
 /* ── 新規タスクフォーム ── */
 .new-task-form {
   max-width: 580px;
