@@ -298,6 +298,31 @@ body {
   border-color: #5a5aaa;
 }
 
+/* ── カード DnD ── */
+[data-draggable] { touch-action: none; }
+
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  font-size: 14px;
+  color: rgba(0,0,0,0.35);
+  flex-shrink: 0;
+  padding: 0 2px;
+  line-height: 1;
+}
+.drag-handle:hover { color: rgba(0,0,0,0.6); }
+
+.card-ghost {
+  position: fixed;
+  pointer-events: none;
+  opacity: 0.75;
+  z-index: 1000;
+  border-radius: 10px;
+  box-shadow: 4px 8px 24px rgba(0,0,0,0.55);
+  transform: rotate(2deg);
+}
+
 .col-header {
   display: flex;
   align-items: center;
@@ -952,3 +977,181 @@ details[open] .period-toggle { color: var(--text); }
 }
 
 .field select option { background: var(--bg); }
+
+/* ── 操作履歴ビュー ── */
+.log-filters {
+  display: flex;
+  gap: 10px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.log-filters select,
+.log-filters input[type="text"] {
+  background: var(--entry-bg);
+  border: none;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 7px 12px;
+  outline: none;
+}
+
+.log-filters select { cursor: pointer; }
+.log-filters input[type="text"] { flex: 1; min-width: 140px; }
+.log-filters input[type="text"]::placeholder { color: var(--subtext); }
+
+.logs-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.log-row {
+  display: grid;
+  grid-template-columns: 155px 90px 140px 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 9px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  transition: background 0.12s;
+}
+
+.log-row:nth-child(even) { background: rgba(255,255,255,0.025); }
+.log-row:hover           { background: var(--panel); }
+
+.log-ts     { color: var(--subtext); font-family: monospace; font-size: 11px; white-space: nowrap; }
+.log-actor  { font-weight: bold; color: #e0e0f0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.log-action { display: flex; align-items: center; gap: 5px; color: var(--text); white-space: nowrap; }
+.log-icon   { font-size: 14px; line-height: 1; }
+.log-detail { color: var(--subtext); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+.logs-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--subtext);
+  font-size: 14px;
+}
+
+@media (max-width: 600px) {
+  .log-row {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: auto auto;
+  }
+  .log-ts     { grid-column: 1; grid-row: 1; font-size: 10px; }
+  .log-actor  { grid-column: 2; grid-row: 1; text-align: right; }
+  .log-action { grid-column: 1; grid-row: 2; }
+  .log-detail { grid-column: 2; grid-row: 2; text-align: right; }
+}
+
+/* ── モバイルトップバー・ハンバーガー（デスクトップでは非表示） ── */
+.topbar {
+  display: none;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+
+.topbar-title {
+  font-size: 15px;
+  font-weight: bold;
+}
+
+.hamburger {
+  display: none;
+  background: none;
+  border: none;
+  color: var(--text);
+  font-size: 20px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+.hamburger:hover { background: var(--border); }
+
+/* バックドロップ（デスクトップでは非表示） */
+.sidebar-backdrop {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.55);
+  z-index: 199;
+}
+
+/* ── モバイル (@media max-width: 768px) ── */
+@media (max-width: 768px) {
+  /* モバイルトップバーを表示 */
+  .topbar    { display: flex; }
+  .hamburger { display: block; }
+
+  /* サイドバーをオーバーレイドロワーに変更 */
+  .sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    height: 100dvh;
+    z-index: 200;
+    width: 210px !important;
+    min-width: 210px !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  /* 開いているときはサイドバー内容をすべて表示（折り畳み状態を無視） */
+  .sidebar .sl-text        { display: inline !important; }
+  .sidebar .sidebar-search { display: flex !important; }
+  .sidebar .sidebar-footer { display: block !important; }
+  .sidebar .nl              { display: inline !important; }
+  .sidebar .nav-btn         { padding: 9px 12px !important; justify-content: flex-start !important; }
+  .sidebar .sidebar-logo    { justify-content: space-between !important; }
+  /* 折り畳みトグルをモバイルでは非表示 */
+  .sidebar .sidebar-toggle  { display: none; }
+
+  /* バックドロップ */
+  .sidebar-backdrop.open { display: block; }
+
+  /* メインコンテンツを全幅に */
+  .main-content { overflow-y: auto; }
+
+  /* カンバンボードを横スクロール可に */
+  #view-kanban .board {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 16px;
+  }
+
+  /* カンバン列の最小幅を少し下げて見やすく */
+  .column {
+    min-width: 200px;
+    flex: 0 0 200px;
+  }
+
+  /* 担当者別ビューの列を折り返し */
+  .assignee-cols {
+    flex-wrap: wrap;
+  }
+
+  .assignee-col {
+    min-width: 160px;
+  }
+
+  /* タイムラインは横スクロール維持 */
+  #timeline-content { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
+  /* モーダルを全幅気味に */
+  .modal {
+    width: 96vw;
+    max-width: 96vw;
+    padding: 20px 16px;
+  }
+}
