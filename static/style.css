@@ -298,6 +298,31 @@ body {
   border-color: #5a5aaa;
 }
 
+/* ── カード DnD ── */
+[data-draggable] { touch-action: none; }
+
+.drag-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  font-size: 14px;
+  color: rgba(0,0,0,0.35);
+  flex-shrink: 0;
+  padding: 0 2px;
+  line-height: 1;
+}
+.drag-handle:hover { color: rgba(0,0,0,0.6); }
+
+.card-ghost {
+  position: fixed;
+  pointer-events: none;
+  opacity: 0.75;
+  z-index: 1000;
+  border-radius: 10px;
+  box-shadow: 4px 8px 24px rgba(0,0,0,0.55);
+  transform: rotate(2deg);
+}
+
 .col-header {
   display: flex;
   align-items: center;
