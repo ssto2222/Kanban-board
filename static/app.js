@@ -87,6 +87,19 @@ function bindEvents() {
     btn.addEventListener('click', () => { switchView(btn.dataset.view); closeSidebar(); });
   });
 
+  // サイドバー折り畳みトグル
+  const sidebarToggle = document.getElementById('sidebar-toggle');
+  const sidebar = document.getElementById('sidebar');
+  if (sidebarToggle && sidebar) {
+    if (localStorage.getItem('sidebarCollapsed') === '1') {
+      sidebar.classList.add('collapsed');
+    }
+    sidebarToggle.addEventListener('click', () => {
+      const collapsed = sidebar.classList.toggle('collapsed');
+      localStorage.setItem('sidebarCollapsed', collapsed ? '1' : '0');
+    });
+  }
+
   // ハンバーガーメニュー（モバイル）
   document.getElementById('hamburger')?.addEventListener('click', openSidebar);
   document.getElementById('sidebar-close')?.addEventListener('click', closeSidebar);
