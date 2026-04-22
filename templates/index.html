@@ -28,7 +28,10 @@
     <!-- ── サイドバー ── -->
     <nav class="sidebar" id="sidebar">
       <button class="sidebar-close" id="sidebar-close" aria-label="閉じる">✕</button>
-      <div class="sidebar-logo">🗒 StickyKanban</div>
+      <div class="sidebar-logo">
+        <span class="sl-text">🗒 StickyKanban</span>
+        <button class="sidebar-toggle" id="sidebar-toggle" title="サイドバーを折り畳む">◀</button>
+      </div>
 
       <div class="sidebar-search">
         <span>🔍</span>
@@ -36,16 +39,16 @@
       </div>
 
       <div class="sidebar-nav">
-        <button class="nav-btn" data-view="kanban">📋 カンバン</button>
-        <button class="nav-btn active" data-view="assignee">👤 担当者別</button>
-        <button class="nav-btn" data-view="timeline">📅 タイムライン</button>
+        <button class="nav-btn" data-view="kanban"   title="カンバン">  <span class="ni">📋</span><span class="nl"> カンバン</span></button>
+        <button class="nav-btn active" data-view="assignee" title="担当者別"><span class="ni">👤</span><span class="nl"> 担当者別</span></button>
+        <button class="nav-btn" data-view="timeline" title="タイムライン"><span class="ni">📅</span><span class="nl"> タイムライン</span></button>
         {% if current_user %}
-        <button class="nav-btn" data-view="mytasks">⭐ マイタスク</button>
+        <button class="nav-btn" data-view="mytasks"  title="マイタスク"> <span class="ni">⭐</span><span class="nl"> マイタスク</span></button>
         {% endif %}
-        <button class="nav-btn" data-view="reassign">🔀 タスク振り替え</button>
-        <button class="nav-btn" data-view="manage">🔧 担当者管理</button>
-        <button class="nav-btn" data-view="new_task">➕ 新規タスク</button>
-        <button class="nav-btn" data-view="aerial">🏗 高所作業車</button>
+        <button class="nav-btn" data-view="reassign" title="タスク振り替え"><span class="ni">🔀</span><span class="nl"> タスク振り替え</span></button>
+        <button class="nav-btn" data-view="manage"   title="担当者管理"> <span class="ni">🔧</span><span class="nl"> 担当者管理</span></button>
+        <button class="nav-btn" data-view="new_task" title="新規タスク"> <span class="ni">➕</span><span class="nl"> 新規タスク</span></button>
+        <button class="nav-btn" data-view="aerial"   title="高所作業車"> <span class="ni">🏗</span><span class="nl"> 高所作業車</span></button>
       </div>
 
       <div class="sidebar-footer">

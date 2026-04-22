@@ -34,15 +34,56 @@ body {
   flex-direction: column;
   padding: 16px 12px;
   gap: 12px;
+  overflow: hidden;
+  transition: width 0.22s ease, min-width 0.22s ease;
 }
 
+/* ── 折り畳み状態 ── */
+.sidebar.collapsed {
+  width: 56px;
+  min-width: 56px;
+}
+
+.sidebar.collapsed .sl-text        { display: none; }
+.sidebar.collapsed .sidebar-search { display: none; }
+.sidebar.collapsed .sidebar-footer { display: none; }
+.sidebar.collapsed .nl              { display: none; }
+.sidebar.collapsed .nav-btn         { padding: 9px; justify-content: center; }
+.sidebar.collapsed .sidebar-logo    { justify-content: center; }
+.sidebar.collapsed .sidebar-toggle  { transform: rotate(180deg); }
+
+/* ── ロゴ行 ── */
 .sidebar-logo {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   font-size: 17px;
   font-weight: bold;
   padding: 0 4px 10px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+  gap: 6px;
 }
+
+.sl-text { white-space: nowrap; overflow: hidden; }
+
+/* ── 折り畳みトグルボタン ── */
+.sidebar-toggle {
+  background: none;
+  border: none;
+  color: var(--subtext);
+  cursor: pointer;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s, background 0.15s, transform 0.22s ease;
+}
+.sidebar-toggle:hover { color: var(--text); background: var(--border); }
+
+/* ── ナビ項目のアイコン/ラベル ── */
+.ni { flex-shrink: 0; }
+.nl { white-space: nowrap; overflow: hidden; }
 
 .sidebar-search {
   display: flex;
@@ -79,6 +120,9 @@ body {
   font-size: 13px;
   padding: 9px 12px;
   border-radius: 6px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
   text-align: left;
   transition: background 0.15s, color 0.15s;
   width: 100%;
