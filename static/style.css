@@ -937,36 +937,6 @@ details[open] .period-toggle { color: var(--text); }
   gap: 8px;
 }
 
-/* ── Nav tabs (shared) ── */
-.topbar-left {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.nav-tabs {
-  display: flex;
-  gap: 4px;
-}
-
-.nav-tab {
-  padding: 6px 14px;
-  border-radius: 6px;
-  font-size: 13px;
-  font-weight: 500;
-  text-decoration: none;
-  color: var(--subtext);
-  transition: background 0.15s, color 0.15s;
-}
-
-.nav-tab:hover { background: var(--border); color: var(--text); }
-.nav-tab.active { background: #e94560; color: #fff; }
 
 /* ── Field select (shared) ── */
 .field select {
