@@ -6,7 +6,8 @@ from datetime import date
 
 app = Flask(__name__)
 
-SAVE_FILE = os.path.join(os.path.expanduser("~"), ".sticky_kanban.json")
+SAVE_FILE      = os.path.join(os.path.expanduser("~"), ".sticky_kanban.json")
+LIFT_SAVE_FILE = os.path.join(os.path.expanduser("~"), ".aerial_lifts.json")
 
 
 def load_tasks():
@@ -37,9 +38,53 @@ def _get_samples():
     return samples
 
 
+def load_lifts():
+    if not os.path.exists(LIFT_SAVE_FILE):
+        return _get_sample_lifts()
+    try:
+        with open(LIFT_SAVE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return _get_sample_lifts()
+
+
+def save_lifts(lifts):
+    with open(LIFT_SAVE_FILE, "w", encoding="utf-8") as f:
+        json.dump(lifts, f, ensure_ascii=False, indent=2)
+
+
+def _get_sample_lifts():
+    colors = [
+        "#FFD166","#EF476F","#06D6A0","#118AB2","#FFB347",
+        "#C77DFF","#F72585","#4CC9F0","#80ED99",
+    ]
+    # 18台: 1F・2Fは3台、3F〜8Fは2台
+    assignment = []
+    for f in range(1, 9):
+        assignment.extend([f] * (3 if f <= 2 else 2))
+
+    lifts = []
+    for i, floor in enumerate(assignment, start=1):
+        lifts.append({
+            "id":       str(uuid.uuid4())[:8],
+            "name":     f"高所作業車 {i:02d}",
+            "floor":    floor,
+            "color":    colors[(i - 1) % len(colors)],
+            "operator": "",
+            "note":     "",
+        })
+    save_lifts(lifts)
+    return lifts
+
+
 @app.route("/")
 def index():
     return render_template("index.html")
+
+
+@app.route("/aerial")
+def aerial():
+    return render_template("aerial.html")
 
 
 @app.route("/api/tasks", methods=["GET"])
@@ -84,6 +129,52 @@ def delete_task(task_id):
     tasks = load_tasks()
     tasks = [t for t in tasks if t["id"] != task_id]
     save_tasks(tasks)
+    return jsonify({"ok": True})
+
+
+# ── Aerial lift API ───────────────────────────────────────────────────────────
+
+@app.route("/api/lifts", methods=["GET"])
+def get_lifts():
+    return jsonify(load_lifts())
+
+
+@app.route("/api/lifts", methods=["POST"])
+def create_lift():
+    data = request.get_json()
+    lift = {
+        "id":       str(uuid.uuid4())[:8],
+        "name":     data.get("name", ""),
+        "floor":    int(data.get("floor", 1)),
+        "color":    data.get("color", "#FFD166"),
+        "operator": data.get("operator", ""),
+        "note":     data.get("note", ""),
+    }
+    lifts = load_lifts()
+    lifts.append(lift)
+    save_lifts(lifts)
+    return jsonify(lift), 201
+
+
+@app.route("/api/lifts/<lift_id>", methods=["PUT"])
+def update_lift(lift_id):
+    data = request.get_json()
+    lifts = load_lifts()
+    for lift in lifts:
+        if lift["id"] == lift_id:
+            for k, v in data.items():
+                if k != "id":
+                    lift[k] = v
+            save_lifts(lifts)
+            return jsonify(lift)
+    return jsonify({"error": "Not found"}), 404
+
+
+@app.route("/api/lifts/<lift_id>", methods=["DELETE"])
+def delete_lift(lift_id):
+    lifts = load_lifts()
+    lifts = [l for l in lifts if l["id"] != lift_id]
+    save_lifts(lifts)
     return jsonify({"ok": True})
 
 
