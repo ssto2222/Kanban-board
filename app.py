@@ -19,6 +19,9 @@ if os.environ.get("FLASK_ENV") == "production" or os.environ.get("SESSION_COOKIE
 
 SAVE_FILE  = os.path.join(os.path.expanduser("~"), ".sticky_kanban.json")
 USERS_FILE = os.path.join(os.path.expanduser("~"), ".sticky_kanban_users.json")
+LOG_FILE   = os.path.join(os.path.expanduser("~"), ".sticky_kanban_logs.json")
+
+COL_LABEL = {"todo": "未着手", "wip": "作業中", "done": "完了", "milestone": "マイルストーン"}
 
 
 def _get_supabase():
@@ -192,6 +195,39 @@ def _delete_task_file(task_id):
     _file_save(tasks)
 
 
+# ── 操作ログ ─────────────────────────────────────────────────────────────────
+
+def load_logs():
+    if not os.path.exists(LOG_FILE):
+        return []
+    try:
+        with open(LOG_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def append_log(action, detail, entity_id="", entity_title=""):
+    username     = session.get("username", "")
+    display_name = session.get("display_name", "") or username or "匿名"
+    entry = {
+        "id":           str(uuid.uuid4())[:8],
+        "ts":           datetime.now(timezone.utc).isoformat(),
+        "username":     username,
+        "display_name": display_name,
+        "action":       action,
+        "detail":       detail,
+        "entity_id":    entity_id,
+        "entity_title": entity_title,
+    }
+    logs = load_logs()
+    logs.append(entry)
+    if len(logs) > 500:
+        logs = logs[-500:]
+    with open(LOG_FILE, "w", encoding="utf-8") as f:
+        json.dump(logs, f, ensure_ascii=False, indent=2)
+
+
 # ── 起動時シードユーザー ──────────────────────────────────────────────────────
 # INIT_USERNAME / INIT_PASSWORD 環境変数が設定されている場合、
 # 起動時にそのユーザーを作成する（既存の場合はスキップ）。
@@ -229,6 +265,7 @@ def login():
             session["user_id"]      = user["id"]
             session["username"]     = user["username"]
             session["display_name"] = user.get("display_name", username)
+            append_log("login", f"ログイン: {user.get('display_name', username)}")
             return redirect(url_for("index") + "?view=mytasks")
         error = "ユーザー名またはパスワードが正しくありません"
     return render_template("login.html", mode="login", error=error)
@@ -264,6 +301,7 @@ def register():
 
 @app.route("/logout")
 def logout():
+    append_log("logout", f"ログアウト: {session.get('display_name', session.get('username', ''))}")
     session.clear()
     return redirect(url_for("index"))
 
@@ -285,7 +323,9 @@ def reassign_tasks():
     if supabase:
         try:
             res = supabase.table("tasks").update({"assignee": to_val}).eq("assignee", from_val).execute()
-            return jsonify({"updated": len(res.data or [])})
+            count = len(res.data or [])
+            append_log("task_reassign", f"担当者「{from_val}」→「{to_val}」に振り替え ({count}件)")
+            return jsonify({"updated": count})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -296,6 +336,7 @@ def reassign_tasks():
             t["assignee"] = to_val
             count += 1
     _file_save(tasks_data)
+    append_log("task_reassign", f"担当者「{from_val}」→「{to_val}」に振り替え ({count}件)")
     return jsonify({"updated": count})
 
 
@@ -342,11 +383,16 @@ def create_task():
             payload = {k: v for k, v in data.items() if v is not None and str(v).strip() != ""}
             payload.setdefault("created_at", datetime.now(timezone.utc).isoformat())
             res = supabase.table("tasks").insert(payload).execute()
-            return jsonify(res.data[0] if res.data else payload), 201
+            result = res.data[0] if res.data else payload
+            title = result.get("title", "")
+            append_log("task_create", f"タスク「{title}」を作成", result.get("id", ""), title)
+            return jsonify(result), 201
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
     task = _create_task_file(data)
+    title = task.get("title", "")
+    append_log("task_create", f"タスク「{title}」を作成", task.get("id", ""), title)
     return jsonify(task), 201
 
 
@@ -357,27 +403,46 @@ def update_task(task_id):
     if supabase:
         try:
             res = supabase.table("tasks").update(data).eq("id", task_id).execute()
-            return jsonify(res.data[0] if res.data else data)
+            result = res.data[0] if res.data else data
+            title = result.get("title", "")
+            if "column" in data:
+                col = COL_LABEL.get(data["column"], data["column"])
+                append_log("task_move", f"「{title}」を「{col}」に移動", task_id, title)
+            else:
+                append_log("task_update", f"タスク「{title}」を更新", task_id, title)
+            return jsonify(result)
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
     task = _update_task_file(task_id, data)
     if task is None:
         return jsonify({"error": "Not found"}), 404
+    title = task.get("title", "")
+    if "column" in data:
+        col = COL_LABEL.get(data["column"], data["column"])
+        append_log("task_move", f"「{title}」を「{col}」に移動", task_id, title)
+    else:
+        append_log("task_update", f"タスク「{title}」を更新", task_id, title)
     return jsonify(task)
 
 
 @app.route("/api/tasks/<task_id>", methods=["DELETE"])
 def delete_task(task_id):
+    # タイトルをログ用に事前取得
+    all_tasks = load_tasks()
+    task_title = next((t.get("title", "") for t in all_tasks if t.get("id") == task_id), "")
+
     supabase = _get_supabase()
     if supabase:
         try:
             supabase.table("tasks").delete().eq("id", task_id).execute()
+            append_log("task_delete", f"タスク「{task_title}」を削除", task_id, task_title)
             return jsonify({"ok": True})
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
     _delete_task_file(task_id)
+    append_log("task_delete", f"タスク「{task_title}」を削除", task_id, task_title)
     return jsonify({"ok": True})
 
 
@@ -445,6 +510,7 @@ def create_lift():
     lifts = load_lifts()
     lifts.append(lift)
     save_lifts(lifts)
+    append_log("lift_create", f"高所作業車「{lift['name']}」を{lift['floor']}Fに追加", lift["id"], lift["name"])
     return jsonify(lift), 201
 
 
@@ -452,12 +518,18 @@ def create_lift():
 def update_lift(lift_id):
     data = request.get_json()
     lifts = load_lifts()
+    old_floor = next((l.get("floor") for l in lifts if l["id"] == lift_id), None)
     for lift in lifts:
         if lift["id"] == lift_id:
             for k, v in data.items():
                 if k != "id":
                     lift[k] = v
             save_lifts(lifts)
+            name = lift.get("name", "")
+            if "floor" in data and data["floor"] != old_floor:
+                append_log("lift_move", f"高所作業車「{name}」を{old_floor}F→{lift['floor']}Fに移動", lift_id, name)
+            else:
+                append_log("lift_update", f"高所作業車「{name}」を更新", lift_id, name)
             return jsonify(lift)
     return jsonify({"error": "Not found"}), 404
 
@@ -465,9 +537,21 @@ def update_lift(lift_id):
 @app.route("/api/lifts/<lift_id>", methods=["DELETE"])
 def delete_lift(lift_id):
     lifts = load_lifts()
+    target = next((l for l in lifts if l["id"] == lift_id), None)
     lifts = [l for l in lifts if l["id"] != lift_id]
     save_lifts(lifts)
+    if target:
+        name = target.get("name", "")
+        append_log("lift_delete", f"高所作業車「{name}」を削除", lift_id, name)
     return jsonify({"ok": True})
+
+
+@app.route("/api/logs", methods=["GET"])
+def get_logs():
+    if "username" not in session:
+        return jsonify({"error": "ログインが必要です"}), 401
+    logs = list(reversed(load_logs()))  # 新しい順
+    return jsonify(logs)
 
 
 if __name__ == "__main__":

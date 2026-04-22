@@ -213,6 +213,7 @@ function switchView(view) {
   else if (view === 'manage')    renderManage();
   else if (view === 'new_task')  initNewTaskForm();
   else if (view === 'aerial')    initAerial();
+  else if (view === 'logs')      initLogs();
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
