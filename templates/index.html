@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>🗒 StickyKanban</title>
   <link rel="stylesheet" href="/static/style.css">
 </head>
@@ -24,37 +24,243 @@
       <input type="text" id="search" placeholder="タスク・担当者を検索...">
     </div>
 
-    <main class="board">
-      <div class="column" id="col-todo" data-col="todo">
-        <div class="col-header" style="background:#0f3460">
-          <span>📋&nbsp; 待機中</span>
-          <span class="badge" id="count-todo">0</span>
-        </div>
-        <div class="cards" id="cards-todo"></div>
+    <!-- ── サイドバー ── -->
+    <nav class="sidebar" id="sidebar">
+      <button class="sidebar-close" id="sidebar-close" aria-label="閉じる">✕</button>
+      <div class="sidebar-logo">🗒 StickyKanban</div>
+
+      <div class="sidebar-search">
+        <span>🔍</span>
+        <input type="text" id="search" placeholder="タスク・担当者を検索...">
       </div>
 
-      <div class="column" id="col-wip" data-col="wip">
-        <div class="col-header" style="background:#533483">
-          <span>⚡&nbsp; 進行中</span>
-          <span class="badge" id="count-wip">0</span>
-        </div>
-        <div class="cards" id="cards-wip"></div>
+      <div class="sidebar-nav">
+        <button class="nav-btn" data-view="kanban">📋 カンバン</button>
+        <button class="nav-btn active" data-view="assignee">👤 担当者別</button>
+        <button class="nav-btn" data-view="timeline">📅 タイムライン</button>
+        {% if current_user %}
+        <button class="nav-btn" data-view="mytasks">⭐ マイタスク</button>
+        {% endif %}
+        <button class="nav-btn" data-view="reassign">🔀 タスク振り替え</button>
+        <button class="nav-btn" data-view="manage">🔧 担当者管理</button>
+        <button class="nav-btn" data-view="new_task">➕ 新規タスク</button>
       </div>
 
-      <div class="column" id="col-done" data-col="done">
-        <div class="col-header" style="background:#1a6b3c">
-          <span>✅&nbsp; 完了</span>
-          <span class="badge" id="count-done">0</span>
+      <div class="sidebar-footer">
+        {% if current_user %}
+        <div class="sidebar-user">
+          <span class="sidebar-user-name">👤 {{ current_user.display_name }}</span>
+          <a href="/logout" class="btn-logout">ログアウト</a>
         </div>
-        <div class="cards" id="cards-done"></div>
+        {% else %}
+        <a href="/login" class="btn-login-link">🔑 ログイン / 新規登録</a>
+        {% endif %}
+        <div class="sidebar-section-title">今後追加予定</div>
+        <div class="coming-soon-item">📊 統計・レポート</div>
+        <div class="coming-soon-item">🔔 通知設定</div>
+        <div class="coming-soon-item">👥 チーム管理</div>
+        <div class="coming-soon-item">⚙️ 設定</div>
+        <div class="sidebar-version">v1.0.0</div>
       </div>
+    </nav>
+
+    <!-- サイドバー背景オーバーレイ (モバイル) -->
+    <div class="sidebar-backdrop" id="sidebar-backdrop"></div>
+
+    <!-- ── メインコンテンツ ── -->
+    <main class="main-content">
+      <!-- トップバー (モバイルのみ表示) -->
+      <div class="topbar" id="topbar">
+        <button class="hamburger" id="hamburger" aria-label="メニュー">☰</button>
+        <span class="topbar-title">🗒 StickyKanban</span>
+      </div>
+
+      <!-- カンバンビュー -->
+      <div id="view-kanban" class="view">
+        <!-- マイルストーンセクション（未完了のみ、JSでトグル） -->
+        <div class="milestone-section" id="kanban-milestone-section" style="display:none">
+          <div class="milestone-section-hdr">
+            <span>🔷 マイルストーン</span>
+            <span class="badge" id="count-milestone">0</span>
+          </div>
+          <div class="milestone-cards" id="cards-milestone"></div>
+        </div>
+        <div class="board">
+          <div class="column" id="col-todo" data-col="todo">
+            <div class="col-header" style="background:#0f3460">
+              <span>📋&nbsp; 待機中</span>
+              <span class="badge" id="count-todo">0</span>
+            </div>
+            <div class="cards" id="cards-todo"></div>
+          </div>
+
+          <div class="column" id="col-wip" data-col="wip">
+            <div class="col-header" style="background:#533483">
+              <span>⚡&nbsp; 進行中</span>
+              <span class="badge" id="count-wip">0</span>
+            </div>
+            <div class="cards" id="cards-wip"></div>
+          </div>
+
+          <div class="column" id="col-done" data-col="done">
+            <div class="col-header" style="background:#1a6b3c">
+              <span>✅&nbsp; 完了</span>
+              <span class="badge" id="count-done">0</span>
+            </div>
+            <div class="cards" id="cards-done"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 担当者別ビュー -->
+      <div id="view-assignee" class="view active">
+        <div class="view-header">
+          <h2>👤 担当者別</h2>
+        </div>
+        <div id="assignee-content" class="view-scroll"></div>
+      </div>
+
+      <!-- タイムラインビュー -->
+      <div id="view-timeline" class="view">
+        <div class="view-header">
+          <h2>📅 タイムライン</h2>
+          <div class="timeline-controls">
+            <div class="control-group">
+              <span class="control-label">グループ</span>
+              <label class="radio-label"><input type="radio" name="tl-group" value="assignee" checked> 担当者</label>
+              <label class="radio-label"><input type="radio" name="tl-group" value="status"> ステータス</label>
+            </div>
+            <div class="control-group">
+              <span class="control-label">スパン</span>
+              <select id="tl-span">
+                <option value="2w">2週間（日次）</option>
+                <option value="2m">2ヶ月（週次）</option>
+                <option value="6m">半年（隔週）</option>
+                <option value="1y">1年（月次）</option>
+              </select>
+            </div>
+          </div>
+        </div>
+        <div id="timeline-content" class="view-scroll"></div>
+      </div>
+
+      <!-- マイタスクビュー -->
+      <div id="view-mytasks" class="view">
+        <div class="view-header">
+          <h2>⭐ マイタスク</h2>
+        </div>
+        <div id="mytasks-content" class="view-scroll"></div>
+      </div>
+
+      <!-- タスク振り替えビュー -->
+      <div id="view-reassign" class="view">
+        <div class="view-header">
+          <h2>🔀 タスク振り替え</h2>
+          <p class="view-desc">カードをドラッグして担当者列に移動すると担当者が変わります。</p>
+        </div>
+        <div id="reassign-content" class="view-scroll reassign-scroll"></div>
+      </div>
+
+      <!-- 担当者管理ビュー -->
+      <div id="view-manage" class="view">
+        <div class="view-header">
+          <h2>🔧 担当者管理</h2>
+        </div>
+        <div id="manage-content" class="view-scroll"></div>
+      </div>
+
+      <!-- 新規タスクビュー -->
+      <div id="view-new_task" class="view">
+        <div class="view-header">
+          <h2>➕ 新規タスク / 🔷 マイルストーン</h2>
+        </div>
+        <div class="view-scroll">
+          <div class="new-task-form">
+
+            <div class="field">
+              <label>項目名 (タスク名) <span class="req">*</span></label>
+              <input type="text" id="nt-title" placeholder="タスク名を入力">
+            </div>
+
+            <div class="field">
+              <label class="checkbox-label">
+                <input type="checkbox" id="nt-is-milestone">
+                <span>マイルストーンとして登録（重要な節目・期日）</span>
+              </label>
+              <div id="nt-milestone-info" class="info-box" style="display:none">
+                🔷 マイルストーンとして登録されます。期限（実施日）を必ず入力してください。
+              </div>
+            </div>
+
+            <div class="field">
+              <label>担当者</label>
+              <div class="user-suggestion-wrap">
+                <input type="text" id="nt-assignee" placeholder="名前で検索...">
+                <div class="user-suggestions" id="nt-assignee-dropdown" style="display:none"></div>
+              </div>
+              <!-- 既存テキスト担当者との互換用（非表示） -->
+              <select id="nt-assignee-select" style="display:none">
+                <option value=""></option>
+              </select>
+            </div>
+
+            <div class="field-row">
+              <div class="field">
+                <label>期限 / 実施日 <span class="req">*</span></label>
+                <input type="date" id="nt-deadline">
+              </div>
+              <div class="field">
+                <label>ステータス</label>
+                <select id="nt-status">
+                  <option value="todo">📋 待機中</option>
+                  <option value="wip">⚡ 進行中</option>
+                  <option value="done">✅ 完了</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="field">
+              <label>メモ・詳細</label>
+              <input type="text" id="nt-note" placeholder="メモを入力">
+            </div>
+
+            <div id="nt-period-section">
+              <div class="form-divider"></div>
+              <p class="form-caption">作業期間を設定する場合（タイムラインにバーで表示されます）</p>
+              <div class="field-row">
+                <div class="field">
+                  <label>開始日時</label>
+                  <input type="datetime-local" id="nt-started-at">
+                </div>
+                <div class="field">
+                  <label>終了日時</label>
+                  <input type="datetime-local" id="nt-finished-at">
+                </div>
+              </div>
+            </div>
+
+            <div class="form-divider"></div>
+
+            <div class="field">
+              <label>付箋の色</label>
+              <div class="color-row">
+                <input type="color" id="nt-color" value="#FFD166">
+                <div id="nt-swatches"></div>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-full" id="nt-submit">登録する</button>
+          </div>
+        </div>
+      </div>
+
     </main>
   </div>
 
-  <!-- Modal -->
+  <!-- ── タスク編集モーダル ── -->
   <div class="overlay" id="overlay">
     <div class="modal">
-      <h2 id="modal-title">新規タスク</h2>
+      <h2 id="modal-title">タスク編集</h2>
       <input type="hidden" id="task-id">
 
       <div class="field">
@@ -63,11 +269,24 @@
       </div>
       <div class="field">
         <label>担当者</label>
-        <input type="text" id="task-assignee" placeholder="担当者名">
+        <div class="user-suggestion-wrap">
+          <input type="text" id="task-assignee" placeholder="名前で検索...">
+          <div class="user-suggestions" id="task-assignee-dropdown" style="display:none"></div>
+        </div>
       </div>
-      <div class="field">
-        <label>期限</label>
-        <input type="date" id="task-deadline">
+      <div class="field-row">
+        <div class="field">
+          <label>期限</label>
+          <input type="date" id="task-deadline">
+        </div>
+        <div class="field">
+          <label>ステータス</label>
+          <select id="task-column">
+            <option value="todo">📋 待機中</option>
+            <option value="wip">⚡ 進行中</option>
+            <option value="done">✅ 完了</option>
+          </select>
+        </div>
       </div>
       <div class="field">
         <label>メモ</label>
@@ -81,16 +300,41 @@
         </div>
       </div>
 
-      <div class="modal-btns">
+      <details class="period-details">
+        <summary class="period-toggle">📅 作業期間（タイムライン）</summary>
+        <div class="field-row" style="margin-top:10px">
+          <div class="field">
+            <label>作業開始</label>
+            <input type="datetime-local" id="task-started-at">
+          </div>
+          <div class="field">
+            <label>作業終了</label>
+            <input type="datetime-local" id="task-finished-at">
+          </div>
+        </div>
+      </details>
+
+      <div class="modal-btns" id="modal-btns">
         <button class="btn btn-cancel" id="btn-cancel">キャンセル</button>
         <div class="modal-btns-right">
           <button class="btn btn-danger" id="btn-delete">削除</button>
           <button class="btn btn-primary" id="btn-save">保存</button>
         </div>
       </div>
+      <!-- 削除確認（confirm()の代わりにインラインで表示） -->
+      <div class="delete-confirm-row" id="delete-confirm-row" style="display:none">
+        <span class="delete-confirm-msg">⚠️ 本当に削除しますか？</span>
+        <div class="delete-confirm-btns">
+          <button class="btn btn-cancel" id="btn-delete-cancel">いいえ</button>
+          <button class="btn btn-danger" id="btn-delete-confirm">削除する</button>
+        </div>
+      </div>
     </div>
   </div>
 
+  <script>
+    window.CURRENT_USER = {{ current_user | tojson }};
+  </script>
   <script src="/static/app.js"></script>
 </body>
 </html>

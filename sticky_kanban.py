@@ -35,6 +35,7 @@ STICKY_COLORS = [
     "#FFD166", "#EF476F", "#06D6A0",
     "#118AB2", "#FFB347", "#C77DFF",
     "#F72585", "#4CC9F0", "#80ED99",
+    "#9842f5", "#f2c2ed",
 ]
 
 COLUMN_DEFS = [
