@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>🗒 StickyKanban</title>
   <link rel="stylesheet" href="/static/style.css">
+  <link rel="stylesheet" href="/static/aerial.css">
 </head>
 <body>
   <div class="app">
@@ -44,6 +45,7 @@
         <button class="nav-btn" data-view="reassign">🔀 タスク振り替え</button>
         <button class="nav-btn" data-view="manage">🔧 担当者管理</button>
         <button class="nav-btn" data-view="new_task">➕ 新規タスク</button>
+        <button class="nav-btn" data-view="aerial">🏗 高所作業車</button>
       </div>
 
       <div class="sidebar-footer">
@@ -254,7 +256,68 @@
         </div>
       </div>
 
+      <!-- 高所作業車ビュー -->
+      <div id="view-aerial" class="view">
+        <div class="view-header">
+          <h2>🏗 高所作業車 配置図</h2>
+          <span class="total-info">合計 <strong id="aerial-total">0</strong> 台</span>
+          <button class="btn btn-primary" id="aerial-btn-new" style="margin-left:auto">＋ 追加</button>
+        </div>
+        <div class="view-scroll">
+          <div class="aerial-board" id="aerial-board">
+            <!-- 8F → 1F を aerial.js が生成 -->
+          </div>
+        </div>
+      </div>
+
     </main>
+  </div>
+
+  <!-- ── 高所作業車 モーダル ── -->
+  <div class="overlay" id="aerial-overlay">
+    <div class="modal">
+      <h2 id="aerial-modal-title">高所作業車 追加</h2>
+      <input type="hidden" id="lift-id">
+      <div class="field">
+        <label>車両名 <span class="req">*</span></label>
+        <input type="text" id="lift-name" placeholder="例: 高所作業車 01">
+      </div>
+      <div class="field">
+        <label>配置階</label>
+        <select id="lift-floor">
+          <option value="8">8F</option>
+          <option value="7">7F</option>
+          <option value="6">6F</option>
+          <option value="5">5F</option>
+          <option value="4">4F</option>
+          <option value="3">3F</option>
+          <option value="2">2F</option>
+          <option value="1">1F</option>
+        </select>
+      </div>
+      <div class="field">
+        <label>オペレーター</label>
+        <input type="text" id="lift-operator" placeholder="担当者名">
+      </div>
+      <div class="field">
+        <label>備考</label>
+        <input type="text" id="lift-note" placeholder="備考を入力">
+      </div>
+      <div class="field">
+        <label>カードの色</label>
+        <div class="color-row">
+          <input type="color" id="lift-color" value="#FFD166">
+          <div id="aerial-swatches"></div>
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-cancel" id="aerial-btn-cancel">キャンセル</button>
+        <div class="modal-btns-right">
+          <button class="btn btn-danger"  id="aerial-btn-delete" style="display:none">削除</button>
+          <button class="btn btn-primary" id="aerial-btn-save">保存</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- ── タスク編集モーダル ── -->
@@ -336,5 +399,6 @@
     window.CURRENT_USER = {{ current_user | tojson }};
   </script>
   <script src="/static/app.js"></script>
+  <script src="/static/aerial.js"></script>
 </body>
 </html>

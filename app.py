@@ -268,11 +268,6 @@ def logout():
     return redirect(url_for("index"))
 
 
-@app.route("/aerial")
-def aerial():
-    return render_template("aerial.html")
-
-
 @app.route("/api/tasks", methods=["GET"])
 def get_tasks():
     return jsonify(load_tasks())
@@ -384,6 +379,49 @@ def delete_task(task_id):
 
     _delete_task_file(task_id)
     return jsonify({"ok": True})
+
+
+# ── Aerial lift ストレージ ────────────────────────────────────────────────────
+
+LIFT_SAVE_FILE = os.path.join(os.path.expanduser("~"), ".aerial_lifts.json")
+
+
+def load_lifts():
+    if not os.path.exists(LIFT_SAVE_FILE):
+        return _get_sample_lifts()
+    try:
+        with open(LIFT_SAVE_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return _get_sample_lifts()
+
+
+def save_lifts(lifts):
+    with open(LIFT_SAVE_FILE, "w", encoding="utf-8") as f:
+        json.dump(lifts, f, ensure_ascii=False, indent=2)
+
+
+def _get_sample_lifts():
+    colors = [
+        "#FFD166","#EF476F","#06D6A0","#118AB2","#FFB347",
+        "#C77DFF","#F72585","#4CC9F0","#80ED99",
+    ]
+    # 18台: 1F・2Fは3台、3F〜8Fは2台
+    assignment = []
+    for f in range(1, 9):
+        assignment.extend([f] * (3 if f <= 2 else 2))
+    lifts = []
+    for i, floor in enumerate(assignment, start=1):
+        lifts.append({
+            "id":       str(uuid.uuid4())[:8],
+            "name":     f"高所作業車 {i:02d}",
+            "floor":    floor,
+            "color":    colors[(i - 1) % len(colors)],
+            "operator": "",
+            "note":     "",
+        })
+    save_lifts(lifts)
+    return lifts
 
 
 # ── Aerial lift API ───────────────────────────────────────────────────────────

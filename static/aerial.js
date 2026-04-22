@@ -6,20 +6,28 @@ const LIFT_COLORS = [
   '#F72585','#4CC9F0','#80ED99',
 ];
 
-let lifts       = [];
-let draggedId   = null;
-let editingLift = null;
+let lifts        = [];
+let liftDragId   = null;
+let editingLift  = null;
+let aerialReady  = false;
 
-// ── Init ──────────────────────────────────────────────────────────────────────
+// ── Entry point (called by switchView in app.js) ──────────────────────────────
 
-document.addEventListener('DOMContentLoaded', () => {
-  buildSwatches();
-  bindEvents();
-  loadLifts();
-});
+function initAerial() {
+  if (!aerialReady) {
+    aerialReady = true;
+    buildAerialSwatches();
+    bindAerialEvents();
+    loadLifts();
+  } else {
+    renderLifts();
+  }
+}
 
-function buildSwatches() {
-  const container = document.getElementById('swatches');
+// ── Setup ─────────────────────────────────────────────────────────────────────
+
+function buildAerialSwatches() {
+  const container = document.getElementById('aerial-swatches');
   for (const c of LIFT_COLORS) {
     const sw = document.createElement('span');
     sw.className = 'swatch';
@@ -32,19 +40,19 @@ function buildSwatches() {
   }
 }
 
-function bindEvents() {
-  document.getElementById('btn-new').addEventListener('click', () => openNewModal(1));
-  document.getElementById('btn-cancel').addEventListener('click', closeModal);
-  document.getElementById('btn-save').addEventListener('click', saveLift);
-  document.getElementById('btn-delete').addEventListener('click', deleteLift);
+function bindAerialEvents() {
+  document.getElementById('aerial-btn-new').addEventListener('click', () => openLiftModal(1));
+  document.getElementById('aerial-btn-cancel').addEventListener('click', closeLiftModal);
+  document.getElementById('aerial-btn-save').addEventListener('click', saveLift);
+  document.getElementById('aerial-btn-delete').addEventListener('click', deleteLift);
 
-  document.getElementById('overlay').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('overlay')) closeModal();
+  document.getElementById('aerial-overlay').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('aerial-overlay')) closeLiftModal();
   });
 
   document.addEventListener('keydown', (e) => {
-    if (document.getElementById('overlay').style.display !== 'flex') return;
-    if (e.key === 'Escape') closeModal();
+    if (document.getElementById('aerial-overlay').style.display !== 'flex') return;
+    if (e.key === 'Escape') closeLiftModal();
     if (e.key === 'Enter' && e.target.tagName !== 'TEXTAREA') saveLift();
   });
 }
@@ -54,10 +62,10 @@ function bindEvents() {
 async function loadLifts() {
   const res = await fetch('/api/lifts');
   lifts = await res.json();
-  render();
+  renderLifts();
 }
 
-async function apiPut(id, data) {
+async function liftPut(id, data) {
   await fetch(`/api/lifts/${id}`, {
     method: 'PUT',
     headers: { 'Content-Type': 'application/json' },
@@ -65,7 +73,7 @@ async function apiPut(id, data) {
   });
 }
 
-async function apiPost(data) {
+async function liftPost(data) {
   const res = await fetch('/api/lifts', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -74,21 +82,21 @@ async function apiPost(data) {
   return res.json();
 }
 
-async function apiDelete(id) {
+async function liftDelete(id) {
   await fetch(`/api/lifts/${id}`, { method: 'DELETE' });
 }
 
 // ── Render ────────────────────────────────────────────────────────────────────
 
-function render() {
-  const board = document.getElementById('board');
+function renderLifts() {
+  const board = document.getElementById('aerial-board');
   board.innerHTML = '';
 
   for (let floor = 8; floor >= 1; floor--) {
     board.appendChild(buildFloorRow(floor));
   }
 
-  document.getElementById('total-count').textContent = lifts.length;
+  document.getElementById('aerial-total').textContent = lifts.length;
 }
 
 function buildFloorRow(floor) {
@@ -98,32 +106,28 @@ function buildFloorRow(floor) {
   row.className = 'floor-row';
   row.dataset.floor = floor;
 
-  // 階ラベル
   const label = document.createElement('div');
   label.className = 'floor-label';
   label.innerHTML = `
     <span class="floor-num">${floor}</span>
     <span class="floor-f">F</span>
-    <span class="floor-count badge">${floorLifts.length}</span>
+    <span class="badge floor-count">${floorLifts.length}</span>
   `;
 
-  // カードエリア
   const area = document.createElement('div');
   area.className = 'floor-cards';
 
   for (const lift of floorLifts) {
-    area.appendChild(buildCard(lift));
+    area.appendChild(buildLiftCard(lift));
   }
 
-  // 各階の追加ボタン
   const addBtn = document.createElement('button');
   addBtn.className = 'floor-add-btn';
   addBtn.textContent = '＋';
   addBtn.title = `${floor}Fに追加`;
-  addBtn.addEventListener('click', () => openNewModal(floor));
+  addBtn.addEventListener('click', () => openLiftModal(floor));
   area.appendChild(addBtn);
 
-  // ドロップゾーン
   row.addEventListener('dragover', (e) => {
     e.preventDefault();
     row.classList.add('highlight');
@@ -131,103 +135,103 @@ function buildFloorRow(floor) {
   row.addEventListener('dragleave', (e) => {
     if (!row.contains(e.relatedTarget)) row.classList.remove('highlight');
   });
-  row.addEventListener('drop', (e) => handleDrop(e, floor));
+  row.addEventListener('drop', (e) => handleLiftDrop(e, floor));
 
   row.appendChild(label);
   row.appendChild(area);
   return row;
 }
 
-function buildCard(lift) {
+function buildLiftCard(lift) {
   const card = document.createElement('div');
   card.className = 'lift-card';
   card.draggable = true;
   card.dataset.id = lift.id;
   card.style.background = lift.color;
 
-  const topBg = darken(lift.color, 0.2);
+  const topBg = liftDarken(lift.color, 0.2);
   card.innerHTML = `
     <div class="card-top" style="background:${topBg}">
-      <span class="card-title">${esc(lift.name)}</span>
+      <span class="card-title">${liftEsc(lift.name)}</span>
       <button class="card-edit-btn" title="編集">✏️</button>
     </div>
     <div class="card-body">
-      ${lift.operator ? `<div class="card-assignee">👷 ${esc(lift.operator)}</div>` : ''}
-      ${lift.note     ? `<div class="card-note">${esc(lift.note)}</div>` : ''}
+      ${lift.operator ? `<div class="card-assignee">👷 ${liftEsc(lift.operator)}</div>` : ''}
+      ${lift.note     ? `<div class="card-note">${liftEsc(lift.note)}</div>` : ''}
     </div>
   `;
 
   card.addEventListener('dragstart', (e) => {
-    draggedId = lift.id;
+    liftDragId = lift.id;
     e.dataTransfer.effectAllowed = 'move';
     setTimeout(() => card.classList.add('dragging'), 0);
   });
   card.addEventListener('dragend', () => {
     card.classList.remove('dragging');
-    draggedId = null;
+    liftDragId = null;
     document.querySelectorAll('.floor-row').forEach(r => r.classList.remove('highlight'));
   });
 
   card.querySelector('.card-edit-btn').addEventListener('click', (e) => {
     e.stopPropagation();
-    openEditModal(lift);
+    openLiftEditModal(lift);
   });
-  card.addEventListener('click', () => openEditModal(lift));
+  card.addEventListener('click', () => openLiftEditModal(lift));
 
   return card;
 }
 
 // ── Drag & Drop ───────────────────────────────────────────────────────────────
 
-async function handleDrop(e, targetFloor) {
+async function handleLiftDrop(e, targetFloor) {
   e.preventDefault();
   document.querySelectorAll('.floor-row').forEach(r => r.classList.remove('highlight'));
 
-  if (!draggedId) return;
-  const lift = lifts.find(l => l.id === draggedId);
+  if (!liftDragId) return;
+  const lift = lifts.find(l => l.id === liftDragId);
   if (!lift || lift.floor === targetFloor) return;
 
   lift.floor = targetFloor;
-  render();
-  await apiPut(draggedId, lift);
-  draggedId = null;
+  renderLifts();
+  await liftPut(liftDragId, lift);
+  liftDragId = null;
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 
-function openNewModal(floor) {
+function openLiftModal(floor) {
   editingLift = null;
-  document.getElementById('modal-title').textContent   = '高所作業車 追加';
-  document.getElementById('lift-id').value             = '';
-  document.getElementById('lift-name').value           = `高所作業車 ${String(lifts.length + 1).padStart(2, '0')}`;
-  document.getElementById('lift-operator').value       = '';
-  document.getElementById('lift-note').value           = '';
-  document.getElementById('lift-color').value          = LIFT_COLORS[lifts.length % LIFT_COLORS.length];
-  document.getElementById('lift-floor').value          = String(floor);
-  document.getElementById('btn-delete').style.display  = 'none';
-  showModal();
+  document.getElementById('aerial-modal-title').textContent  = '高所作業車 追加';
+  document.getElementById('lift-id').value                   = '';
+  document.getElementById('lift-name').value                 = `高所作業車 ${String(lifts.length + 1).padStart(2, '0')}`;
+  document.getElementById('lift-operator').value             = '';
+  document.getElementById('lift-note').value                 = '';
+  document.getElementById('lift-color').value                = LIFT_COLORS[lifts.length % LIFT_COLORS.length];
+  document.getElementById('lift-floor').value                = String(floor);
+  document.getElementById('aerial-btn-delete').style.display = 'none';
+  showLiftModal();
 }
 
-function openEditModal(lift) {
+function openLiftEditModal(lift) {
   editingLift = lift;
-  document.getElementById('modal-title').textContent   = '高所作業車 編集';
-  document.getElementById('lift-id').value             = lift.id;
-  document.getElementById('lift-name').value           = lift.name;
-  document.getElementById('lift-operator').value       = lift.operator || '';
-  document.getElementById('lift-note').value           = lift.note    || '';
-  document.getElementById('lift-color').value          = lift.color;
-  document.getElementById('lift-floor').value          = String(lift.floor);
-  document.getElementById('btn-delete').style.display  = 'inline-block';
-  showModal();
+  document.getElementById('aerial-modal-title').textContent  = '高所作業車 編集';
+  document.getElementById('lift-id').value                   = lift.id;
+  document.getElementById('lift-name').value                 = lift.name;
+  document.getElementById('lift-operator').value             = lift.operator || '';
+  document.getElementById('lift-note').value                 = lift.note    || '';
+  document.getElementById('lift-color').value                = lift.color;
+  document.getElementById('lift-floor').value                = String(lift.floor);
+  document.getElementById('aerial-btn-delete').style.display = 'inline-block';
+  showLiftModal();
 }
 
-function showModal() {
-  document.getElementById('overlay').style.display = 'flex';
+function showLiftModal() {
+  document.getElementById('aerial-overlay').style.display = 'flex';
   document.getElementById('lift-name').focus();
 }
 
-function closeModal() {
-  document.getElementById('overlay').style.display = 'none';
+function closeLiftModal() {
+  document.getElementById('aerial-overlay').style.display = 'none';
   editingLift = null;
 }
 
@@ -249,15 +253,15 @@ async function saveLift() {
 
   if (editingLift) {
     Object.assign(editingLift, data);
-    render();
-    await apiPut(editingLift.id, editingLift);
+    renderLifts();
+    await liftPut(editingLift.id, editingLift);
   } else {
-    const created = await apiPost(data);
+    const created = await liftPost(data);
     lifts.push(created);
-    render();
+    renderLifts();
   }
 
-  closeModal();
+  closeLiftModal();
 }
 
 async function deleteLift() {
@@ -266,14 +270,14 @@ async function deleteLift() {
 
   const id = editingLift.id;
   lifts = lifts.filter(l => l.id !== id);
-  render();
-  closeModal();
-  await apiDelete(id);
+  renderLifts();
+  closeLiftModal();
+  await liftDelete(id);
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function darken(hex, factor) {
+function liftDarken(hex, factor) {
   const r = parseInt(hex.slice(1, 3), 16);
   const g = parseInt(hex.slice(3, 5), 16);
   const b = parseInt(hex.slice(5, 7), 16);
@@ -281,7 +285,7 @@ function darken(hex, factor) {
   return `#${d(r)}${d(g)}${d(b)}`;
 }
 
-function esc(str) {
+function liftEsc(str) {
   return String(str)
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

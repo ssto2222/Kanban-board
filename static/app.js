@@ -192,13 +192,14 @@ function switchView(view) {
     v.classList.toggle('active', v.id === `view-${view}`);
   });
 
-  if (view === 'kanban')    renderKanban();
+  if (view === 'kanban')         renderKanban();
   else if (view === 'assignee')  renderAssignee();
   else if (view === 'timeline')  renderTimeline();
   else if (view === 'mytasks')   renderMyTasks();
   else if (view === 'reassign')  renderReassign();
   else if (view === 'manage')    renderManage();
   else if (view === 'new_task')  initNewTaskForm();
+  else if (view === 'aerial')    initAerial();
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
