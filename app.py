@@ -268,6 +268,11 @@ def logout():
     return redirect(url_for("index"))
 
 
+@app.route("/aerial")
+def aerial():
+    return render_template("aerial.html")
+
+
 @app.route("/api/tasks", methods=["GET"])
 def get_tasks():
     return jsonify(load_tasks())
@@ -378,6 +383,52 @@ def delete_task(task_id):
             return jsonify({"error": str(e)}), 500
 
     _delete_task_file(task_id)
+    return jsonify({"ok": True})
+
+
+# ── Aerial lift API ───────────────────────────────────────────────────────────
+
+@app.route("/api/lifts", methods=["GET"])
+def get_lifts():
+    return jsonify(load_lifts())
+
+
+@app.route("/api/lifts", methods=["POST"])
+def create_lift():
+    data = request.get_json()
+    lift = {
+        "id":       str(uuid.uuid4())[:8],
+        "name":     data.get("name", ""),
+        "floor":    int(data.get("floor", 1)),
+        "color":    data.get("color", "#FFD166"),
+        "operator": data.get("operator", ""),
+        "note":     data.get("note", ""),
+    }
+    lifts = load_lifts()
+    lifts.append(lift)
+    save_lifts(lifts)
+    return jsonify(lift), 201
+
+
+@app.route("/api/lifts/<lift_id>", methods=["PUT"])
+def update_lift(lift_id):
+    data = request.get_json()
+    lifts = load_lifts()
+    for lift in lifts:
+        if lift["id"] == lift_id:
+            for k, v in data.items():
+                if k != "id":
+                    lift[k] = v
+            save_lifts(lifts)
+            return jsonify(lift)
+    return jsonify({"error": "Not found"}), 404
+
+
+@app.route("/api/lifts/<lift_id>", methods=["DELETE"])
+def delete_lift(lift_id):
+    lifts = load_lifts()
+    lifts = [l for l in lifts if l["id"] != lift_id]
+    save_lifts(lifts)
     return jsonify({"ok": True})
 
 

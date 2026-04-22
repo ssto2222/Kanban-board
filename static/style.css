@@ -893,337 +893,48 @@ details[open] .period-toggle { color: var(--text); }
   gap: 8px;
 }
 
-/* ── 削除確認行 ── */
-.delete-confirm-row {
+/* ── Nav tabs (shared) ── */
+.topbar-left {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-top: 24px;
-  padding: 12px 0 env(safe-area-inset-bottom, 8px);
-  border-top: 1px solid var(--border);
-  position: sticky;
-  bottom: 0;
-  background: var(--bg);
-  z-index: 1;
-}
-.delete-confirm-msg { font-size: 13px; color: #e94560; }
-.delete-confirm-btns { display: flex; gap: 8px; }
-
-/* ── ドラッグゴースト ── */
-.card-ghost {
-  position: fixed !important;
-  pointer-events: none !important;
-  z-index: 9999 !important;
-  opacity: 0.82;
-  transform: rotate(2deg) scale(1.05) !important;
-  box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
-  transition: none !important;
+  gap: 20px;
 }
 
-/* ── ドラッグハンドル: ハンドルのみ touch-action:none でスクロールと切り分け ── */
-.drag-handle {
-  touch-action: none;
-  cursor: grab;
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.nav-tabs {
+  display: flex;
+  gap: 4px;
+}
+
+.nav-tab {
+  padding: 6px 14px;
+  border-radius: 6px;
   font-size: 13px;
-  line-height: 1;
-  color: rgba(0, 0, 0, 0.3);
-  padding: 0 3px 0 0;
-  flex-shrink: 0;
-  user-select: none;
-  transition: color 0.12s;
+  font-weight: 500;
+  text-decoration: none;
+  color: var(--subtext);
+  transition: background 0.15s, color 0.15s;
 }
 
-.drag-handle:hover  { color: rgba(0, 0, 0, 0.6); }
-.drag-handle:active { cursor: grabbing; }
+.nav-tab:hover { background: var(--border); color: var(--text); }
+.nav-tab.active { background: #e94560; color: #fff; }
 
-/* ── マイルストーンセクション (カンバン) ── */
-.milestone-section {
-  padding: 10px 12px 0;
-  flex-shrink: 0;
-}
-
-.milestone-section-hdr {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 14px;
-  background: var(--panel);
-  border-left: 4px solid #E94560;
-  border-radius: 0 8px 8px 0;
-  margin-bottom: 10px;
-  font-weight: bold;
-  font-size: 14px;
-}
-
-.milestone-cards {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  padding: 0 4px 10px;
-}
-
-.milestone-cards .card {
-  width: 170px;
-  flex-shrink: 0;
-}
-
-/* ── タイムライン上のマイルストーン (ひし形) ── */
-.tl-ms-pos {
-  position: absolute;
-  width: 14px;
-  height: 14px;
-  z-index: 4;
-  cursor: pointer;
-  transform: translateX(-50%) translateY(-50%);
-  user-select: none;
-  touch-action: none;
-}
-
-.tl-ms-diamond {
+/* ── Field select (shared) ── */
+.field select {
   width: 100%;
-  height: 100%;
-  transform: rotate(45deg);
-  border-radius: 2px;
-  background: linear-gradient(135deg, #7ee8ff 0%, #1e90ff 45%, #0a3d8f 100%);
-  border: 1px solid rgba(126, 232, 255, 0.55);
-  box-shadow:
-    0 0 7px rgba(30, 144, 255, 0.75),
-    0 0 2px rgba(126, 232, 255, 0.9),
-    0 2px 5px rgba(0, 0, 0, 0.55);
-  transition: filter 0.12s, box-shadow 0.12s;
+  background: var(--entry-bg);
+  border: none;
+  border-radius: 6px;
+  color: var(--text);
+  font-size: 13px;
+  padding: 8px 12px;
+  outline: none;
+  cursor: pointer;
 }
 
-.tl-ms-pos:hover .tl-ms-diamond {
-  filter: brightness(1.25) saturate(1.2);
-  box-shadow:
-    0 0 14px rgba(30, 144, 255, 0.95),
-    0 0 4px rgba(126, 232, 255, 1),
-    0 3px 8px rgba(0, 0, 0, 0.6);
-}
-
-.tl-ms-label {
-  position: absolute;
-  left: 18px;
-  top: 50%;
-  transform: translateY(-50%);
-  font-size: 10px;
-  font-weight: bold;
-  color: #ccc;
-  white-space: nowrap;
-  pointer-events: none;
-  max-width: 110px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* ── サイドバー背景オーバーレイ (モバイル) ── */
-.sidebar-backdrop {
-  display: none;
-  position: fixed;
-  inset: 0;
-  background: rgba(0,0,0,0.52);
-  z-index: 199;
-}
-.sidebar-backdrop.open { display: block; }
-
-/* ── トップバー / ハンバーガー (デスクトップでは非表示) ── */
-.topbar      { display: none; }
-.hamburger   { display: none; }
-.sidebar-close { display: none; }
-
-/* ═══════════════════════════════════════════════════════════════
-   レスポンシブ: タブレット・スマートフォン (≤ 1024px)
-   iPad Air (820px), iPad Pro 11" (834px), iPad Pro 12.9" (1024px) を含む
-   ═══════════════════════════════════════════════════════════════ */
-@media (max-width: 1024px) {
-  body { overflow: auto; }
-
-  .app {
-    flex-direction: column;
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
-  }
-
-  /* ── トップバー ── */
-  .topbar {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 14px;
-    padding-top: env(safe-area-inset-top, 0px);  /* iOS ノッチ対応 */
-    height: calc(52px + env(safe-area-inset-top, 0px));
-    background: var(--panel);
-    border-bottom: 1px solid var(--border);
-    flex-shrink: 0;
-    position: sticky;
-    top: 0;
-    z-index: 100;
-  }
-
-  .hamburger {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 22px;
-    cursor: pointer;
-    min-width: 44px;
-    min-height: 44px;
-    border-radius: 6px;
-  }
-
-  .hamburger:hover { background: #1c2645; }
-
-  .topbar-title {
-    font-size: 16px;
-    font-weight: bold;
-  }
-
-  /* ── サイドバー: スライドインドロワー ── */
-  .sidebar {
-    position: fixed !important;
-    top: 0;
-    left: -270px;
-    width: 250px !important;
-    min-width: 250px !important;
-    height: 100%;
-    z-index: 200;
-    transition: left 0.25s ease;
-    overflow-y: auto;
-    padding-top: 52px;
-    box-shadow: none;
-  }
-
-  .sidebar.open { left: 0 !important; box-shadow: 4px 0 24px rgba(0,0,0,0.6); }
-
-  .sidebar-close {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    color: var(--text);
-    font-size: 20px;
-    cursor: pointer;
-    min-width: 36px;
-    min-height: 36px;
-    border-radius: 6px;
-  }
-
-  .sidebar-close:hover { background: #1c2645; }
-
-  /* ── メインコンテンツ ── */
-  .main-content {
-    height: auto;
-    overflow: visible;
-  }
-
-  .view {
-    height: auto;
-    overflow: visible;
-    min-height: calc(100dvh - 52px - env(safe-area-inset-top, 0px));
-  }
-
-  .view-scroll {
-    overflow-y: visible;
-    padding: 12px 14px;
-  }
-
-  .view-header {
-    padding: 10px 14px;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  /* ── カンバンボード: 横スクロール ── */
-  #view-kanban .board {
-    overflow-x: auto;
-    overflow-y: visible;
-    padding: 8px;
-    align-items: flex-start;
-    -webkit-overflow-scrolling: touch;
-  }
-
-  .column {
-    min-width: 240px;
-    flex-shrink: 0;
-  }
-
-  /* ── 担当者別: カラム縦積み ── */
-  .assignee-cols { flex-direction: column; }
-
-  /* ── タイムライン ── */
-  .tl-group-col,
-  .tl-group-name { width: 100px !important; min-width: 100px !important; }
-
-  .tl-resize-handle { width: 16px; }
-
-  /* ── モーダル: フルスクリーン ── */
-  .overlay { align-items: flex-start; }
-
-  .modal {
-    width: 100% !important;
-    max-width: 100% !important;
-    max-height: 100dvh;
-    border-radius: 0 !important;
-    padding: 20px 16px 0;
-    overflow-y: auto;
-  }
-
-  /* ── ナビゲーション ── */
-  .nav-btn {
-    padding: 13px 12px;
-    font-size: 14px;
-    min-height: 44px;
-  }
-
-  /* ── ボタン ── */
-  .btn {
-    padding: 11px 16px;
-    min-height: 44px;
-    font-size: 14px;
-  }
-
-  /* ── カード操作ボタン ── */
-  .card-edit-btn, .card-copy-btn {
-    font-size: 15px;
-    padding: 3px;
-    min-width: 30px;
-    min-height: 30px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
-
-  /* ── スウォッチ ── */
-  .swatch {
-    width: 34px;
-    height: 34px;
-  }
-
-  /* ── タイムラインコントロール ── */
-  .timeline-controls { gap: 10px; }
-
-  /* ── フォームの2列を縦積み ── */
-  .field-row {
-    flex-direction: column;
-    gap: 0;
-  }
-}
-
-/* ═══════════════════════════════════════════════════════════════
-   小型スマートフォン (≤ 560px)
-   ═══════════════════════════════════════════════════════════════ */
-@media (max-width: 560px) {
-  .column { min-width: 200px; }
-  .tl-group-col,
-  .tl-group-name { width: 80px !important; min-width: 80px !important; }
-  .tl-wrap { min-width: 500px; }
-}
+.field select option { background: var(--bg); }

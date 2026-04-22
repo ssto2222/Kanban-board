@@ -1,0 +1,100 @@
+/* ── Page layout ── */
+body        { overflow-y: auto; }
+.aerial-app { height: auto; min-height: 100vh; }
+
+.total-info {
+  font-size: 13px;
+  color: var(--subtext);
+}
+
+/* ── Aerial board: floors stacked 8F → 1F ── */
+.aerial-board {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  margin-bottom: 20px;
+}
+
+/* ── Floor row ── */
+.floor-row {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid var(--border);
+  min-height: 110px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.floor-row:last-child { border-bottom: none; }
+
+.floor-row.highlight {
+  background: #1c2645;
+  border-color: #5a5aaa;
+}
+
+/* ── Floor label ── */
+.floor-label {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 68px;
+  flex-shrink: 0;
+  background: var(--entry-bg);
+  border-right: 1px solid var(--border);
+  padding: 10px 5px;
+  gap: 2px;
+}
+
+.floor-num  { font-size: 28px; font-weight: bold; color: var(--text); line-height: 1; }
+.floor-f    { font-size: 12px; color: var(--subtext); }
+.floor-count { margin-top: 6px; }
+
+/* ── Cards area ── */
+.floor-cards {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 12px 14px;
+  flex: 1;
+}
+
+/* ── Lift card ── */
+.lift-card {
+  width: 130px;
+  border-radius: 10px;
+  box-shadow: 2px 3px 8px rgba(0,0,0,0.45);
+  cursor: grab;
+  transition: transform 0.12s, box-shadow 0.12s;
+  user-select: none;
+  flex-shrink: 0;
+}
+
+.lift-card:hover  { transform: translateY(-2px); box-shadow: 3px 6px 16px rgba(0,0,0,0.55); }
+.lift-card.dragging { opacity: 0.35; cursor: grabbing; }
+
+/* ── Per-floor add button ── */
+.floor-add-btn {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  border: 2px dashed var(--border);
+  background: transparent;
+  color: var(--subtext);
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.floor-add-btn:hover {
+  border-color: #e94560;
+  color: #e94560;
+  background: rgba(233,69,96,0.1);
+}
