@@ -33,6 +33,9 @@
         <button class="nav-btn" data-view="manage"   title="担当者管理"> <span class="ni">🔧</span><span class="nl"> 担当者管理</span></button>
         <button class="nav-btn" data-view="new_task" title="新規タスク"> <span class="ni">➕</span><span class="nl"> 新規タスク</span></button>
         <button class="nav-btn" data-view="aerial"   title="高所作業車"> <span class="ni">🏗</span><span class="nl"> 高所作業車</span></button>
+        <!-- カスタム配置図（boards.js が動的に挿入） -->
+        <div id="custom-boards-nav"></div>
+        <button class="nav-btn nav-btn-add-board" id="board-add-btn" title="配置図を追加"><span class="ni">➕</span><span class="nl"> 配置図を追加</span></button>
         {% if current_user %}
         <button class="nav-btn" data-view="logs"     title="操作履歴">  <span class="ni">📜</span><span class="nl"> 操作履歴</span></button>
         {% endif %}
@@ -260,6 +263,19 @@
         </div>
       </div>
 
+      <!-- カスタム配置図ビュー（boards.js が動的に描画） -->
+      <div id="view-board" class="view">
+        <div class="view-header">
+          <h2 id="board-view-title">配置図</h2>
+          <span class="total-info">合計 <strong id="board-total">0</strong> 件</span>
+          <button class="btn btn-cancel" id="board-edit-btn" style="margin-left:auto">⚙ 設定</button>
+          <button class="btn btn-primary" id="board-card-new-btn">＋ 追加</button>
+        </div>
+        <div class="view-scroll">
+          <div class="aerial-board" id="board-view-board"></div>
+        </div>
+      </div>
+
       <!-- 操作履歴ビュー -->
       <div id="view-logs" class="view">
         <div class="view-header">
@@ -281,6 +297,13 @@
             <option value="lift_update">高所作業車更新</option>
             <option value="lift_move">高所作業車移動</option>
             <option value="lift_delete">高所作業車削除</option>
+            <option value="board_create">配置図作成</option>
+            <option value="board_update">配置図更新</option>
+            <option value="board_delete">配置図削除</option>
+            <option value="board_card_create">アイテム追加</option>
+            <option value="board_card_update">アイテム更新</option>
+            <option value="board_card_move">アイテム移動</option>
+            <option value="board_card_delete">アイテム削除</option>
           </select>
           <input type="text" id="logs-filter-user" placeholder="操作者で絞り込み...">
         </div>
@@ -335,6 +358,72 @@
         <div class="modal-btns-right">
           <button class="btn btn-danger"  id="aerial-btn-delete" style="display:none">削除</button>
           <button class="btn btn-primary" id="aerial-btn-save">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── カスタム配置図 設定モーダル ── -->
+  <div class="overlay" id="board-settings-overlay">
+    <div class="modal">
+      <h2 id="board-settings-title">配置図を追加</h2>
+      <div class="field">
+        <label>名前 <span class="req">*</span></label>
+        <input type="text" id="board-name" placeholder="例: 仮設材、重機など" maxlength="30">
+      </div>
+      <div class="field-row">
+        <div class="field">
+          <label>アイコン（絵文字）</label>
+          <input type="text" id="board-icon" value="📋" maxlength="2" style="width:54px;font-size:20px;text-align:center;padding:4px">
+        </div>
+        <div class="field">
+          <label>段数（1〜20）</label>
+          <input type="number" id="board-floors" min="1" max="20" value="8" style="width:80px">
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-danger" id="board-settings-delete" style="display:none">削除</button>
+        <div class="modal-btns-right">
+          <button class="btn btn-cancel" id="board-settings-cancel">キャンセル</button>
+          <button class="btn btn-primary" id="board-settings-save">保存</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── カスタム配置図 カードモーダル ── -->
+  <div class="overlay" id="board-card-overlay">
+    <div class="modal">
+      <h2 id="board-card-modal-title">アイテムを追加</h2>
+      <input type="hidden" id="board-card-id">
+      <div class="field">
+        <label>名前 <span class="req">*</span></label>
+        <input type="text" id="board-card-name">
+      </div>
+      <div class="field">
+        <label>担当者</label>
+        <input type="text" id="board-card-operator" placeholder="担当者名">
+      </div>
+      <div class="field">
+        <label>備考</label>
+        <input type="text" id="board-card-note" placeholder="備考">
+      </div>
+      <div class="field">
+        <label>配置段</label>
+        <input type="number" id="board-card-floor" min="1" max="20" value="1" style="width:80px">
+      </div>
+      <div class="field">
+        <label>カードの色</label>
+        <div class="color-row">
+          <input type="color" id="board-card-color" value="#FFD166">
+          <div id="board-card-swatches"></div>
+        </div>
+      </div>
+      <div class="modal-btns">
+        <button class="btn btn-danger" id="board-card-delete" style="display:none">削除</button>
+        <div class="modal-btns-right">
+          <button class="btn btn-cancel" id="board-card-cancel">キャンセル</button>
+          <button class="btn btn-primary" id="board-card-save">保存</button>
         </div>
       </div>
     </div>
@@ -420,6 +509,7 @@
   </script>
   <script src="/static/app.js"></script>
   <script src="/static/aerial.js"></script>
+  <script src="/static/boards.js"></script>
   <script src="/static/logs.js"></script>
 </body>
 </html>

@@ -112,6 +112,13 @@ body {
   gap: 3px;
 }
 
+.nav-btn-add-board {
+  color: var(--subtext);
+  border-top: 1px solid var(--border);
+  margin-top: 4px;
+  padding-top: 10px;
+}
+
 .nav-btn {
   background: none;
   border: none;
