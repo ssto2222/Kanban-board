@@ -6,12 +6,12 @@ const LIFT_COLORS = [
   '#F72585','#4CC9F0','#80ED99',
 ];
 
-let lifts        = [];
-let liftDragId   = null;
-let editingLift  = null;
-let aerialReady  = false;
+let lifts       = [];
+let liftDrag    = null;   // { lift, card, ghost, offsetX, offsetY, startX, startY, moved }
+let editingLift = null;
+let aerialReady = false;
 
-// ── Entry point (called by switchView in app.js) ──────────────────────────────
+// ── Entry point ───────────────────────────────────────────────────────────────
 
 function initAerial() {
   if (!aerialReady) {
@@ -91,11 +91,9 @@ async function liftDelete(id) {
 function renderLifts() {
   const board = document.getElementById('aerial-board');
   board.innerHTML = '';
-
   for (let floor = 8; floor >= 1; floor--) {
     board.appendChild(buildFloorRow(floor));
   }
-
   document.getElementById('aerial-total').textContent = lifts.length;
 }
 
@@ -128,15 +126,6 @@ function buildFloorRow(floor) {
   addBtn.addEventListener('click', () => openLiftModal(floor));
   area.appendChild(addBtn);
 
-  row.addEventListener('dragover', (e) => {
-    e.preventDefault();
-    row.classList.add('highlight');
-  });
-  row.addEventListener('dragleave', (e) => {
-    if (!row.contains(e.relatedTarget)) row.classList.remove('highlight');
-  });
-  row.addEventListener('drop', (e) => handleLiftDrop(e, floor));
-
   row.appendChild(label);
   row.appendChild(area);
   return row;
@@ -145,7 +134,6 @@ function buildFloorRow(floor) {
 function buildLiftCard(lift) {
   const card = document.createElement('div');
   card.className = 'lift-card';
-  card.draggable = true;
   card.dataset.id = lift.id;
   card.style.background = lift.color;
 
@@ -161,40 +149,92 @@ function buildLiftCard(lift) {
     </div>
   `;
 
-  card.addEventListener('dragstart', (e) => {
-    liftDragId = lift.id;
-    e.dataTransfer.effectAllowed = 'move';
-    setTimeout(() => card.classList.add('dragging'), 0);
-  });
-  card.addEventListener('dragend', () => {
-    card.classList.remove('dragging');
-    liftDragId = null;
-    document.querySelectorAll('.floor-row').forEach(r => r.classList.remove('highlight'));
-  });
-
   card.querySelector('.card-edit-btn').addEventListener('click', (e) => {
     e.stopPropagation();
     openLiftEditModal(lift);
   });
-  card.addEventListener('click', () => openLiftEditModal(lift));
+
+  // ── Pointer Events DnD (mouse + touch + pen) ──────────────────────────────
+
+  card.addEventListener('pointerdown', (e) => {
+    if (e.button !== 0 && e.pointerType === 'mouse') return;
+    if (e.target.closest('.card-edit-btn')) return;
+    e.preventDefault();
+    card.setPointerCapture(e.pointerId);
+
+    const rect = card.getBoundingClientRect();
+    const ghost = card.cloneNode(true);
+    ghost.className = 'card-ghost';
+    ghost.style.width  = rect.width + 'px';
+    ghost.style.left   = rect.left + 'px';
+    ghost.style.top    = rect.top + 'px';
+    document.body.appendChild(ghost);
+    card.style.opacity = '0.35';
+
+    liftDrag = {
+      lift, card, ghost,
+      offsetX: e.clientX - rect.left,
+      offsetY: e.clientY - rect.top,
+      startX:  e.clientX,
+      startY:  e.clientY,
+      moved:   false,
+    };
+  });
+
+  card.addEventListener('pointermove', (e) => {
+    if (!liftDrag || liftDrag.card !== card) return;
+    const dx = e.clientX - liftDrag.startX;
+    const dy = e.clientY - liftDrag.startY;
+    if (!liftDrag.moved && Math.hypot(dx, dy) > 4) liftDrag.moved = true;
+    if (!liftDrag.moved) return;
+
+    liftDrag.ghost.style.left = (e.clientX - liftDrag.offsetX) + 'px';
+    liftDrag.ghost.style.top  = (e.clientY - liftDrag.offsetY) + 'px';
+
+    liftDrag.ghost.style.display = 'none';
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    liftDrag.ghost.style.display = '';
+    document.querySelectorAll('#aerial-board .floor-row').forEach(r => r.classList.remove('highlight'));
+    el?.closest('.floor-row')?.classList.add('highlight');
+  });
+
+  card.addEventListener('pointerup', async (e) => {
+    if (!liftDrag || liftDrag.card !== card) return;
+    const { lift: dragLift, ghost, moved } = liftDrag;
+    liftDrag = null;
+    card.style.opacity = '';
+    document.querySelectorAll('#aerial-board .floor-row').forEach(r => r.classList.remove('highlight'));
+
+    if (!moved) {
+      ghost.remove();
+      openLiftEditModal(lift);
+      return;
+    }
+
+    ghost.style.display = 'none';
+    const el = document.elementFromPoint(e.clientX, e.clientY);
+    ghost.remove();
+
+    const row = el?.closest('.floor-row');
+    if (!row) return;
+    const targetFloor = parseInt(row.dataset.floor, 10);
+    if (targetFloor === dragLift.floor) return;
+
+    dragLift.floor = targetFloor;
+    renderLifts();
+    await liftPut(dragLift.id, dragLift);
+  });
+
+  card.addEventListener('lostpointercapture', () => {
+    if (liftDrag && liftDrag.card === card) {
+      liftDrag.ghost.remove();
+      card.style.opacity = '';
+      document.querySelectorAll('#aerial-board .floor-row').forEach(r => r.classList.remove('highlight'));
+      liftDrag = null;
+    }
+  });
 
   return card;
-}
-
-// ── Drag & Drop ───────────────────────────────────────────────────────────────
-
-async function handleLiftDrop(e, targetFloor) {
-  e.preventDefault();
-  document.querySelectorAll('.floor-row').forEach(r => r.classList.remove('highlight'));
-
-  if (!liftDragId) return;
-  const lift = lifts.find(l => l.id === liftDragId);
-  if (!lift || lift.floor === targetFloor) return;
-
-  lift.floor = targetFloor;
-  renderLifts();
-  await liftPut(liftDragId, lift);
-  liftDragId = null;
 }
 
 // ── Modal ─────────────────────────────────────────────────────────────────────

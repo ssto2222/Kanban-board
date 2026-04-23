@@ -19,7 +19,9 @@ if os.environ.get("FLASK_ENV") == "production" or os.environ.get("SESSION_COOKIE
 
 SAVE_FILE  = os.path.join(os.path.expanduser("~"), ".sticky_kanban.json")
 USERS_FILE = os.path.join(os.path.expanduser("~"), ".sticky_kanban_users.json")
-LOG_FILE   = os.path.join(os.path.expanduser("~"), ".sticky_kanban_logs.json")
+LOG_FILE        = os.path.join(os.path.expanduser("~"), ".sticky_kanban_logs.json")
+BOARDS_FILE     = os.path.join(os.path.expanduser("~"), ".sticky_kanban_boards.json")
+BOARD_CARDS_FILE= os.path.join(os.path.expanduser("~"), ".sticky_kanban_board_cards.json")
 
 COL_LABEL = {"todo": "未着手", "wip": "作業中", "done": "完了", "milestone": "マイルストーン"}
 
@@ -552,6 +554,156 @@ def get_logs():
         return jsonify({"error": "ログインが必要です"}), 401
     logs = list(reversed(load_logs()))  # 新しい順
     return jsonify(logs)
+
+
+# ── カスタムボード ストレージ ──────────────────────────────────────────────────
+
+def load_boards():
+    if not os.path.exists(BOARDS_FILE):
+        return []
+    try:
+        with open(BOARDS_FILE, encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+def save_boards(boards):
+    with open(BOARDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(boards, f, ensure_ascii=False, indent=2)
+
+
+def load_board_cards(board_id=None):
+    if not os.path.exists(BOARD_CARDS_FILE):
+        return []
+    try:
+        with open(BOARD_CARDS_FILE, encoding="utf-8") as f:
+            cards = json.load(f)
+    except Exception:
+        return []
+    if board_id:
+        return [c for c in cards if c.get("board_id") == board_id]
+    return cards
+
+
+def save_board_cards(cards):
+    with open(BOARD_CARDS_FILE, "w", encoding="utf-8") as f:
+        json.dump(cards, f, ensure_ascii=False, indent=2)
+
+
+# ── カスタムボード API ────────────────────────────────────────────────────────
+
+@app.route("/api/boards", methods=["GET"])
+def get_boards():
+    return jsonify(load_boards())
+
+
+@app.route("/api/boards", methods=["POST"])
+def create_board():
+    data = request.get_json()
+    board = {
+        "id":         str(uuid.uuid4())[:8],
+        "name":       data.get("name", ""),
+        "icon":       data.get("icon", "📋"),
+        "floors":     max(1, min(20, int(data.get("floors", 8)))),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    boards = load_boards()
+    boards.append(board)
+    save_boards(boards)
+    append_log("board_create", f"配置図「{board['name']}」を作成", board["id"], board["name"])
+    return jsonify(board), 201
+
+
+@app.route("/api/boards/<board_id>", methods=["PUT"])
+def update_board(board_id):
+    data = request.get_json()
+    boards = load_boards()
+    for board in boards:
+        if board["id"] == board_id:
+            for k, v in data.items():
+                if k not in ("id", "created_at"):
+                    board[k] = v
+            if "floors" in data:
+                board["floors"] = max(1, min(20, int(board["floors"])))
+            save_boards(boards)
+            name = board.get("name", "")
+            append_log("board_update", f"配置図「{name}」を更新", board_id, name)
+            return jsonify(board)
+    return jsonify({"error": "Not found"}), 404
+
+
+@app.route("/api/boards/<board_id>", methods=["DELETE"])
+def delete_board(board_id):
+    boards = load_boards()
+    target = next((b for b in boards if b["id"] == board_id), None)
+    boards = [b for b in boards if b["id"] != board_id]
+    save_boards(boards)
+    cards = load_board_cards()
+    cards = [c for c in cards if c.get("board_id") != board_id]
+    save_board_cards(cards)
+    if target:
+        name = target.get("name", "")
+        append_log("board_delete", f"配置図「{name}」を削除", board_id, name)
+    return jsonify({"ok": True})
+
+
+@app.route("/api/boards/<board_id>/cards", methods=["GET"])
+def get_board_cards(board_id):
+    return jsonify(load_board_cards(board_id))
+
+
+@app.route("/api/boards/<board_id>/cards", methods=["POST"])
+def create_board_card(board_id):
+    data = request.get_json()
+    card = {
+        "id":       str(uuid.uuid4())[:8],
+        "board_id": board_id,
+        "name":     data.get("name", ""),
+        "floor":    int(data.get("floor", 1)),
+        "color":    data.get("color", "#FFD166"),
+        "operator": data.get("operator", ""),
+        "note":     data.get("note", ""),
+    }
+    cards = load_board_cards()
+    cards.append(card)
+    save_board_cards(cards)
+    board = next((b for b in load_boards() if b["id"] == board_id), {})
+    board_name = board.get("name", board_id)
+    append_log("board_card_create", f"「{board_name}」に「{card['name']}」を追加", card["id"], card["name"])
+    return jsonify(card), 201
+
+
+@app.route("/api/boards/<board_id>/cards/<card_id>", methods=["PUT"])
+def update_board_card(board_id, card_id):
+    data = request.get_json()
+    cards = load_board_cards()
+    old_floor = next((c.get("floor") for c in cards if c["id"] == card_id), None)
+    for card in cards:
+        if card["id"] == card_id and card.get("board_id") == board_id:
+            for k, v in data.items():
+                if k not in ("id", "board_id"):
+                    card[k] = v
+            save_board_cards(cards)
+            name = card.get("name", "")
+            if "floor" in data and data["floor"] != old_floor:
+                append_log("board_card_move", f"「{name}」を{old_floor}F→{card['floor']}Fに移動", card_id, name)
+            else:
+                append_log("board_card_update", f"「{name}」を更新", card_id, name)
+            return jsonify(card)
+    return jsonify({"error": "Not found"}), 404
+
+
+@app.route("/api/boards/<board_id>/cards/<card_id>", methods=["DELETE"])
+def delete_board_card(board_id, card_id):
+    cards = load_board_cards()
+    target = next((c for c in cards if c["id"] == card_id and c.get("board_id") == board_id), None)
+    cards = [c for c in cards if not (c["id"] == card_id and c.get("board_id") == board_id)]
+    save_board_cards(cards)
+    if target:
+        name = target.get("name", "")
+        append_log("board_card_delete", f"「{name}」を削除", card_id, name)
+    return jsonify({"ok": True})
 
 
 if __name__ == "__main__":

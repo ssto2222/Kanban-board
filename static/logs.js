@@ -44,17 +44,24 @@ async function fetchLogs() {
 // ── Render ────────────────────────────────────────────────────────────────────
 
 const ACTION_META = {
-  login:         { icon: '🔑', label: 'ログイン' },
-  logout:        { icon: '👋', label: 'ログアウト' },
-  task_create:   { icon: '➕', label: 'タスク作成' },
-  task_update:   { icon: '✏️',  label: 'タスク更新' },
-  task_move:     { icon: '📦', label: 'カード移動' },
-  task_delete:   { icon: '🗑',  label: 'タスク削除' },
-  task_reassign: { icon: '🔀', label: '担当者振り替え' },
-  lift_create:   { icon: '➕', label: '高所作業車追加' },
-  lift_update:   { icon: '✏️',  label: '高所作業車更新' },
-  lift_move:     { icon: '🏗',  label: '高所作業車移動' },
-  lift_delete:   { icon: '🗑',  label: '高所作業車削除' },
+  login:            { icon: '🔑', label: 'ログイン' },
+  logout:           { icon: '👋', label: 'ログアウト' },
+  task_create:      { icon: '➕', label: 'タスク作成' },
+  task_update:      { icon: '✏️',  label: 'タスク更新' },
+  task_move:        { icon: '📦', label: 'カード移動' },
+  task_delete:      { icon: '🗑',  label: 'タスク削除' },
+  task_reassign:    { icon: '🔀', label: '担当者振り替え' },
+  lift_create:      { icon: '➕', label: '高所作業車追加' },
+  lift_update:      { icon: '✏️',  label: '高所作業車更新' },
+  lift_move:        { icon: '🏗',  label: '高所作業車移動' },
+  lift_delete:      { icon: '🗑',  label: '高所作業車削除' },
+  board_create:     { icon: '📋', label: '配置図作成' },
+  board_update:     { icon: '✏️',  label: '配置図更新' },
+  board_delete:     { icon: '🗑',  label: '配置図削除' },
+  board_card_create:{ icon: '➕', label: 'アイテム追加' },
+  board_card_update:{ icon: '✏️',  label: 'アイテム更新' },
+  board_card_move:  { icon: '📦', label: 'アイテム移動' },
+  board_card_delete:{ icon: '🗑',  label: 'アイテム削除' },
 };
 
 function renderLogs() {

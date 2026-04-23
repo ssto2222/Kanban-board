@@ -201,19 +201,22 @@ function switchView(view) {
   document.querySelectorAll('.nav-btn').forEach(btn => {
     btn.classList.toggle('active', btn.dataset.view === view);
   });
+  // board-* views all share the #view-board container
+  const viewId = view.startsWith('board-') ? 'board' : view;
   document.querySelectorAll('.view').forEach(v => {
-    v.classList.toggle('active', v.id === `view-${view}`);
+    v.classList.toggle('active', v.id === `view-${viewId}`);
   });
 
-  if (view === 'kanban')         renderKanban();
-  else if (view === 'assignee')  renderAssignee();
-  else if (view === 'timeline')  renderTimeline();
-  else if (view === 'mytasks')   renderMyTasks();
-  else if (view === 'reassign')  renderReassign();
-  else if (view === 'manage')    renderManage();
-  else if (view === 'new_task')  initNewTaskForm();
-  else if (view === 'aerial')    initAerial();
-  else if (view === 'logs')      initLogs();
+  if (view === 'kanban')              renderKanban();
+  else if (view === 'assignee')       renderAssignee();
+  else if (view === 'timeline')       renderTimeline();
+  else if (view === 'mytasks')        renderMyTasks();
+  else if (view === 'reassign')       renderReassign();
+  else if (view === 'manage')         renderManage();
+  else if (view === 'new_task')       initNewTaskForm();
+  else if (view === 'aerial')         initAerial();
+  else if (view === 'logs')           initLogs();
+  else if (view.startsWith('board-')) initCustomBoard(view.slice(6));
 }
 
 // ── API ───────────────────────────────────────────────────────────────────────
