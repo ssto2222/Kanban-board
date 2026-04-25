@@ -454,6 +454,13 @@ LIFT_SAVE_FILE = os.path.join(os.path.expanduser("~"), ".aerial_lifts.json")
 
 
 def load_lifts():
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            res = supabase.table("aerial_lifts").select("*").order("name").execute()
+            return res.data or []
+        except Exception:
+            pass
     if not os.path.exists(LIFT_SAVE_FILE):
         return _get_sample_lifts()
     try:
@@ -509,6 +516,15 @@ def create_lift():
         "operator": data.get("operator", ""),
         "note":     data.get("note", ""),
     }
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            res = supabase.table("aerial_lifts").insert(lift).execute()
+            result = res.data[0] if res.data else lift
+            append_log("lift_create", f"高所作業車「{result['name']}」を{result['floor']}Fに追加", result["id"], result["name"])
+            return jsonify(result), 201
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
     lifts = load_lifts()
     lifts.append(lift)
     save_lifts(lifts)
@@ -519,6 +535,21 @@ def create_lift():
 @app.route("/api/lifts/<lift_id>", methods=["PUT"])
 def update_lift(lift_id):
     data = request.get_json()
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            old = supabase.table("aerial_lifts").select("floor,name").eq("id", lift_id).execute()
+            old_floor = old.data[0]["floor"] if old.data else None
+            res = supabase.table("aerial_lifts").update(data).eq("id", lift_id).execute()
+            result = res.data[0] if res.data else data
+            name = result.get("name", "")
+            if "floor" in data and data["floor"] != old_floor:
+                append_log("lift_move", f"高所作業車「{name}」を{old_floor}F→{result['floor']}Fに移動", lift_id, name)
+            else:
+                append_log("lift_update", f"高所作業車「{name}」を更新", lift_id, name)
+            return jsonify(result)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
     lifts = load_lifts()
     old_floor = next((l.get("floor") for l in lifts if l["id"] == lift_id), None)
     for lift in lifts:
@@ -538,6 +569,17 @@ def update_lift(lift_id):
 
 @app.route("/api/lifts/<lift_id>", methods=["DELETE"])
 def delete_lift(lift_id):
+    supabase = _get_supabase()
+    if supabase:
+        try:
+            old = supabase.table("aerial_lifts").select("name").eq("id", lift_id).execute()
+            name = old.data[0]["name"] if old.data else ""
+            supabase.table("aerial_lifts").delete().eq("id", lift_id).execute()
+            if name:
+                append_log("lift_delete", f"高所作業車「{name}」を削除", lift_id, name)
+            return jsonify({"ok": True})
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
     lifts = load_lifts()
     target = next((l for l in lifts if l["id"] == lift_id), None)
     lifts = [l for l in lifts if l["id"] != lift_id]
